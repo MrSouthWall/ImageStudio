@@ -1,6 +1,6 @@
 # 图作间 · Image Studio
 
-**[在线使用](https://mrsouthwall.github.io/image-studio/)** · [下载 HTML](https://github.com/MrSouthWall/image-studio/raw/refs/heads/main/index.html)
+**[在线使用](https://mrsouthwall.github.io/ImageStudio/)** · [下载 HTML](https://github.com/MrSouthWall/ImageStudio/raw/refs/heads/main/index.html)
 
 一个单文件的 AI 图片创作工作台。支持连续对话生图、局部修改、参考图复用和本地图库，下载一个 HTML 就能使用。
 

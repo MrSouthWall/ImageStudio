@@ -1,0 +1,56 @@
+{
+  "author": "OpenAI",
+  "source": "https://developers.openai.com/api/docs/guides/image-generation",
+  "checked": "2026-11-05",
+  "rights": "官方文档示例单独标注来源，不视为上游 MIT 许可证授予的资产。",
+  "assets": [
+    {
+      "file": "complexity-low.webp",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/paper-cut-football-effort-low-gpt-image-2-6-sunburst.webp",
+      "processing": "原始文件"
+    },
+    {
+      "file": "complexity-medium.webp",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/paper-cut-football-effort-medium-gpt-image-2-6-sunburst.webp",
+      "processing": "原始文件"
+    },
+    {
+      "file": "complexity-high.webp",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/paper-cut-football-effort-high-gpt-image-2-6-sunburst.webp",
+      "processing": "原始文件"
+    },
+    {
+      "file": "svg-flare.svg",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/field-and-flour-gpt-image-2-6-flare.svg",
+      "processing": "原始 SVG"
+    },
+    {
+      "file": "svg-sunburst.svg",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/field-and-flour-gpt-image-2-6-sunburst.svg",
+      "processing": "原始 SVG"
+    },
+    {
+      "file": "river-partial-0.jpg",
+      "url": "https://developers.openai.com/images/image-25-article/river-partial-0.png",
+      "processing": "640px 长边，JPEG 质量 76；仅用于缩略对比。原始 PNG 存于 artifacts/official/examples。",
+      "model": "GPT Image 2.5，不能用于比较 2.6 画质"
+    },
+    {
+      "file": "river-partial-1.jpg",
+      "url": "https://developers.openai.com/images/image-25-article/river-partial-1.png",
+      "processing": "640px 长边，JPEG 质量 76；仅用于缩略对比。原始 PNG 存于 artifacts/official/examples。",
+      "model": "GPT Image 2.5，不能用于比较 2.6 画质"
+    },
+    {
+      "file": "river-final.jpg",
+      "url": "https://developers.openai.com/images/image-25-article/river-final.png",
+      "processing": "640px 长边，JPEG 质量 76；仅用于缩略对比。原始 PNG 存于 artifacts/official/examples。",
+      "model": "GPT Image 2.5，不能用于比较 2.6 画质"
+    },
+    {
+      "file": "gif-example.gif",
+      "url": "https://developers.openai.com/images/platform/guides/image-prompting/monkey-lantern-gpt-image-2-6-sunburst.gif",
+      "processing": "原始 GIF"
+    }
+  ]
+}

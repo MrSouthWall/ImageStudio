@@ -68,7 +68,7 @@
 .help-row:last-child :is(dt, dd) { padding-bottom: 0; }
 .info-popover .help-note { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--muted); }
 .help-note + p { margin-top: 9px; }
-.info-popover:has(.model-price-table) { width: 420px; }
+.info-popover:has(> .model-price-comparison) { width: 420px; }
 .model-price-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .model-price-table caption { text-align: left; margin-bottom: 5px; font-weight: 650; }
 .model-price-table th, .model-price-table td { text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; font-weight: 500; }

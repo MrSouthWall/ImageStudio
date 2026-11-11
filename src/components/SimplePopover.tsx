@@ -1,4 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { StudioIcon, type StudioIconName } from './StudioIcon'
 
 export function SimplePopover({ label, children, wide = false, button, disabled = false, triggerClassName = '' }: { label: string; children: ReactNode; wide?: boolean; button?: ReactNode; disabled?: boolean; triggerClassName?: string }) {
   const id = useId()
@@ -25,10 +26,12 @@ export function SimplePopover({ label, children, wide = false, button, disabled 
       const popup = help.current!
       const width = popup.offsetWidth
       const height = popup.offsetHeight
-      const beside = wide && rect.right + width + 24 <= window.innerWidth
-      popup.style.left = `${beside ? rect.right + 8 : Math.max(16, Math.min(rect.left, window.innerWidth - width - 16))}px`
+      const gutter = 12
+      const beside = wide && rect.right + width + gutter + 8 <= window.innerWidth
+      const below = rect.bottom + height + 8 <= window.innerHeight - gutter
+      popup.style.left = `${beside ? rect.right + 8 : Math.max(gutter, Math.min(rect.left, window.innerWidth - width - gutter))}px`
+      popup.style.top = `${Math.max(gutter, Math.min(beside ? rect.top : below ? rect.bottom + 8 : rect.top - height - 8, window.innerHeight - height - gutter))}px`
       popup.style.visibility = 'visible'
-      popup.style.top = `${beside ? Math.max(16, Math.min(rect.top, window.innerHeight - height - 16)) : Math.max(16, rect.bottom + height + 8 <= window.innerHeight - 16 ? rect.bottom + 8 : rect.top - height - 8)}px`
     }
     position()
     const observer = new ResizeObserver(position)
@@ -70,15 +73,15 @@ export function SimplePopover({ label, children, wide = false, button, disabled 
       parent?.removeEventListener('beforetoggle', parentToggle)
     }
   }, [open, button])
-  return <><button ref={trigger} disabled={disabled} type="button" className={`${button ? 'parameter-button' : 'info-button'} ${triggerClassName}`} popoverTarget={button ? id : undefined} onPointerEnter={(event) => { if (event.pointerType === 'mouse') showInfo() }} onPointerLeave={scheduleClose} onFocus={(event) => { if (!restoringFocus.current && event.currentTarget.matches(':focus-visible')) showInfo() }} onBlur={scheduleClose} onClick={button ? undefined : () => { cancelClose(); if (window.matchMedia('(hover: hover)').matches) showInfo(); else help.current?.togglePopover() }} aria-label={button ? label : `${label}说明`} aria-expanded={open} aria-describedby={open ? id : undefined}>{button || <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 5.5v1.5"/></svg>}</button><div id={id} ref={help} popover={button ? 'auto' : 'manual'} onPointerEnter={button ? undefined : cancelClose} onPointerLeave={scheduleClose} onFocus={button ? undefined : cancelClose} onBlur={scheduleClose} role={button ? 'dialog' : wide ? 'region' : 'tooltip'} aria-label={button ? label : `${label}说明`} className={`info-popover${wide ? ' info-popover-wide' : ''}${button ? ' menu-popover' : ''}`} onBeforeToggle={(event) => { if (event.target !== event.currentTarget) return; if (event.newState === 'open') event.currentTarget.style.visibility = 'hidden' }} onToggle={(event) => { if (event.target === event.currentTarget) setOpen(event.newState === 'open') }}>{open && children}</div></>
+  return <><button ref={trigger} disabled={disabled} type="button" className={`${button ? 'parameter-button' : 'info-button'} ${triggerClassName}`} popoverTarget={button ? id : undefined} onPointerEnter={(event) => { if (event.pointerType === 'mouse') showInfo() }} onPointerLeave={scheduleClose} onFocus={(event) => { if (!restoringFocus.current && event.currentTarget.matches(':focus-visible')) showInfo() }} onBlur={scheduleClose} onClick={button ? undefined : () => { cancelClose(); if (window.matchMedia('(hover: hover)').matches) showInfo(); else help.current?.togglePopover() }} aria-label={button ? label : `${label}说明`} aria-expanded={open} aria-controls={button ? id : undefined} aria-haspopup={button ? "dialog" : undefined} aria-describedby={!button && open ? id : undefined}>{button || <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 5.5v1.5"/></svg>}</button><div id={id} ref={help} popover={button ? 'auto' : 'manual'} onPointerEnter={button ? undefined : cancelClose} onPointerLeave={scheduleClose} onFocus={button ? undefined : cancelClose} onBlur={scheduleClose} role={button ? 'dialog' : wide ? 'region' : 'tooltip'} aria-label={button ? label : `${label}说明`} className={`info-popover${wide ? ' info-popover-wide' : ''}${button ? ' menu-popover' : ''}`} onBeforeToggle={(event) => { if (event.target !== event.currentTarget) return; if (event.newState === 'open') event.currentTarget.style.visibility = 'hidden' }} onToggle={(event) => { if (event.target === event.currentTarget) setOpen(event.newState === 'open') }}>{open && children}</div></>
 }
 
 export function Info({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
   return <SimplePopover label={label} wide={wide}>{children}</SimplePopover>
 }
 
-export function SimpleChoice({ label, value, options, onChange, disabled, help, children, buttonLabel }: { buttonLabel?: string; label: string; value: string; options: { value: string; label: string; group?: string; detail?: string }[]; onChange: (value: string) => void; disabled?: boolean; help: ReactNode; children?: ReactNode }) {
-  return <SimplePopover label={label} disabled={disabled} button={<><span>{buttonLabel || options.find((option) => option.value === value)?.label || value}</span><svg className="control-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></>}>
+export function SimpleChoice({ label, value, options, onChange, disabled, help, children, buttonLabel, icon, triggerClassName }: { buttonLabel?: string; label: string; value: string; options: { value: string; label: string; group?: string; detail?: string }[]; onChange: (value: string) => void; disabled?: boolean; help: ReactNode; children?: ReactNode; icon?: StudioIconName; triggerClassName?: string }) {
+  return <SimplePopover label={label} disabled={disabled} triggerClassName={triggerClassName} button={<>{icon && <StudioIcon name={icon} size={16}/>}<span className="choice-label">{buttonLabel || options.find((option) => option.value === value)?.label || value}</span><StudioIcon name="chevron" size={13}/></>}>
     <div className="choice-menu"><div className="choice-heading">{label}<Info label={label}>{help}</Info></div>
       <div role="group" aria-label={label}>{options.map((option, i) => <div key={option.value}>{option.group && option.group !== options[i - 1]?.group && <div className="choice-group">{option.group}</div>}<button type="button" disabled={disabled} aria-pressed={value === option.value} onClick={(event) => { onChange(option.value); if (option.value !== 'custom') event.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover() }}><span className={option.detail ? 'choice-option-content' : undefined}><span>{option.label}</span>{option.detail && <span className="choice-option-detail">{option.detail}</span>}</span><span aria-hidden="true">{value === option.value ? '✓' : ''}</span></button></div>)}</div>
       {children}

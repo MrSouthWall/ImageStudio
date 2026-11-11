@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="referrer" content="no-referrer" />
-    <meta name="color-scheme" content="light" />
-    <title>图作间</title>
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0c0c0c" />
+    <script>
+      (() => {
+        let saved
+        try { saved = localStorage.getItem('imagestudio-color-mode') } catch {}
+        const theme = saved === 'light' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = theme
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0c0c0c' : '#f3f3f3'
+      })()
+    </script>
+    <title>图作间 · Image Studio</title>
     <link rel="icon" href="/src/assets/icon.svg" type="image/svg+xml" />
   </head>
   <body>

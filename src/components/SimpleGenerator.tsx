@@ -14,31 +14,34 @@ import { createSimpleMaskedEdit, SIMPLE_MASK_INSTRUCTION } from '../lib/simpleMa
 import { buildSimpleConversationInput } from '../lib/simpleConversation'
 import { callSimpleResponses, DEFAULT_SIMPLE_TOOLS, RESPONSE_MODELS, RESPONSE_MODEL_CHOICES, simpleResponseScope, type SimpleTools } from '../lib/simpleResponses'
 import { deleteSimpleGalleryImage, loadSimpleState, loadSimpleAssets, loadSimpleDraft, saveSimpleChat, saveSimpleItem, simpleRecordMetadata, type SimpleAttachment as Attachment, type SimpleRecord, type SimpleReference, type SimpleChat, type SimpleDraft, type SimpleOutputFile, type SimpleMask } from '../lib/simpleHistory'
-import { Info, SimplePopover, SimpleChoice, HelpRows } from './SimplePopover'
+import { Info, SimpleChoice, HelpRows } from './SimplePopover'
 import { SimpleImageSettings } from './SimpleImageSettings'
 import { buildSimpleGallery, type SimpleGalleryItem } from '../lib/simpleGallery'
 import { SimpleGalleryPicker } from './SimpleGallery'
 import type { ImageSource } from './SimpleStoredImage'
 import { SimpleWorkspace, type WorkspaceTab } from './SimpleWorkspace'
-import { SimpleSidebarResize } from './SimpleSidebarResize'
-import { SimpleDataBackup } from './SimpleDataBackup'
 import { SimpleChatList } from './SimpleChatList'
 import { SimpleMaskEditor } from './SimpleMaskEditor'
+import { StudioIcon } from './StudioIcon'
+import { StudioComposer } from './StudioComposer'
+import { StudioSettings } from './StudioSettings'
+import { StudioSky } from './StudioSky'
+import { useStudioTheme } from '../lib/studioTheme'
 import appIcon from '../assets/icon.svg'
-import licenseUrl from '../../LICENSE?url'
-import noticesUrl from '../assets/third-party-notices.txt?url'
-import exampleSourcesUrl from '../assets/examples/SOURCES.json?url'
 
 const MODELS = SIMPLE_IMAGE_MODELS.map((model) => model.value)
 const STORAGE_KEY = 'gpt-image-simple-connection'
-const views = [{ id: 'chat', label: '对话', icon: 'chat' }, { id: 'gallery', label: '图库', icon: 'image' }] as const
+const views = [
+  { id: 'studio', label: '创作台', icon: 'spark' },
+  { id: 'chat', label: '对话', icon: 'chat' },
+  { id: 'gallery', label: '图库', icon: 'image' },
+] as const
 
-function Icon({ name }: { name: string }) {
-  const paths: Record<string, string> = { menu: 'M4 6h16M4 12h16M4 18h16', plus: 'M12 4v16M4 12h16', chat: 'M21 11a8 8 0 0 1-8 8H6l-4 3V11a9 9 0 0 1 19 0Z', image: 'M4 3h16v18H4zM4 16l5-6 4 4 3-3 4 5M15 7h.01', reference: 'M7 7h14v14H7zM3 17V3h14', settings: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0', send: 'M12 20V4m-6 6 6-6 6 6', tools: 'm4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4', close: 'm6 6 12 12M6 18 18 6', attach: 'm8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2', panel: 'M4 4h16v16H4ZM9 4v16', stop: 'M6 6h12v12H6Z' }
-  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] || paths.chat} fill={name === 'stop' ? 'currentColor' : 'none'}/></svg>
-}
+const sessionLayout = '(min-width: 821px)'
 
 export function SimpleGenerator() {
+  const { theme, toggle: toggleTheme } = useStudioTheme()
+  const dark = theme === 'dark'
   const [connection, setConnection] = useState(() => {
     const fallback = { apiKey: '', baseUrl: 'https://api.openai.com', model: MODELS[0], apiMode: 'responses' as 'images' | 'responses', responseModel: 'gpt-6.1-sol', defaultsVersion: 2 }
     try {
@@ -48,8 +51,6 @@ export function SimpleGenerator() {
     return fallback
   })
   const [saved, setSaved] = useState(false)
-  const [backupBusy, setBackupBusy] = useState(false)
-  const [showKey, setShowKey] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [params, setParams] = useState<TaskParams>({ ...DEFAULT_PARAMS })
   const [customSize, setCustomSize] = useState(SIMPLE_DEFAULT_SIZE)
@@ -63,7 +64,6 @@ export function SimpleGenerator() {
   const [tools, setTools] = useState<SimpleTools>({ ...DEFAULT_SIMPLE_TOOLS })
   const [readingFiles, setReadingFiles] = useState(false)
   const reading = useRef(false)
-  const fileInput = useRef<HTMLInputElement>(null)
   const [attachmentMessage, setAttachmentMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const active = useRef(false)
@@ -75,18 +75,12 @@ export function SimpleGenerator() {
   const [references, setReferences] = useState<SimpleReference[]>([])
   const [chats, setChats] = useState<SimpleChat[]>([])
   const [chatId, setChatId] = useState('')
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('chat')
-  const [galleryToolbar, setGalleryToolbar] = useState<HTMLDivElement | null>(null)
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('studio')
   const [galleryPicker, setGalleryPicker] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem('gpt-image-sidebar-collapsed') === 'true' } catch { return false } })
-  useEffect(() => { try { localStorage.setItem('gpt-image-sidebar-collapsed', String(sidebarCollapsed)) } catch { /* 本次仍可收起。 */ } }, [sidebarCollapsed])
-  useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 800px)')
-    const closeDrawer = () => { if (desktop.matches) setSidebarOpen(false) }
-    desktop.addEventListener('change', closeDrawer)
-    return () => desktop.removeEventListener('change', closeDrawer)
-  }, [])
+  const [desktop, setDesktop] = useState(() => window.matchMedia(sessionLayout).matches)
+  const sessionSheet = useRef<HTMLDialogElement>(null)
+  const searchInput = useRef<HTMLInputElement>(null)
+  const workbench = useRef<HTMLElement>(null)
   const [search, setSearch] = useState('')
   const [historyReady, setHistoryReady] = useState(false)
   const [draftReady, setDraftReady] = useState(false)
@@ -96,11 +90,11 @@ export function SimpleGenerator() {
   const [rebuildContext, setRebuildContext] = useState(false)
   const settingsDialog = useRef<HTMLDialogElement>(null)
   const [error, setError] = useState('')
-  const [enlarged, setEnlarged] = useState('')
+  const [enlarged, setEnlarged] = useState<{ src: string; label: string } | null>(null)
   const dialog = useRef<HTMLDialogElement>(null)
-  const resultArea = useRef<HTMLElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
-  const currentRecords = records.filter((record) => record.chatId === chatId)
+  const currentRecords = useMemo(() => records.filter((record) => record.chatId === chatId), [records, chatId])
+  const currentChat = chats.find((chat) => chat.id === chatId)
   const visibleRecords = useMemo(() => { const deleted = new Set(chats.filter((chat) => chat.deletedAt).map((chat) => chat.id)); return records.filter((record) => !deleted.has(record.chatId || '')) }, [records, chats])
   const galleryItems = useMemo(() => { if (workspaceTab !== 'gallery' && !galleryPicker) return []; const deleted = new Set(deletedGallery); return buildSimpleGallery(visibleRecords, references).filter((item) => !deleted.has(item.id)) }, [workspaceTab, galleryPicker, visibleRecords, references, deletedGallery])
   const responses = connection.apiMode === 'responses'
@@ -111,11 +105,16 @@ export function SimpleGenerator() {
   const estimateSize = size === 'auto' ? SIMPLE_DEFAULT_SIZE : size
   const estimateQuality = params.quality === 'auto' ? 'high' : params.quality
   const estimate = estimateImageOutput({ ...params, size: estimateSize, quality: estimateQuality }, animated ? 0 : partialCount, connection.model)
+  const usesImages = !responses || tools.images || !!mask
+  const configured = !!connection.apiKey.trim()
+  const locked = busy || readingFiles || !draftReady
 
-  function openSettings() {
+  function openSettings(focusKey = false) {
     settingsDialog.current?.showModal()
-    settingsDialog.current?.querySelector<HTMLInputElement>('#api-key')?.focus()
+    if (focusKey) settingsDialog.current?.querySelector<HTMLInputElement>('#api-key')?.focus()
   }
+
+  function openPreview(src: string, label = '图片预览') { setEnlarged({ src, label }) }
 
   function restoreDraft(draft: SimpleDraft | undefined, id: string) {
     let recent: Partial<SimpleDraft> = {}
@@ -149,6 +148,9 @@ export function SimpleGenerator() {
       if (cancelled) return
       setChats(allChats); setChatId(id)
       setRecords(state.records.map((record) => record.status === 'running' ? { ...record, status: 'error', error: '上次响应已中断，已完成内容保留；不会自动重试。' } : record))
+      if (state.records.some((record) => record.chatId === id)) {
+        setWorkspaceTab((current) => current === 'studio' ? 'chat' : current)
+      }
       setReferences(state.references)
       setDeletedGallery(state.deletedGallery)
       restoreDraft(draft, id)
@@ -179,34 +181,64 @@ export function SimpleGenerator() {
     return () => window.clearInterval(timer)
   }, [busy])
   useEffect(() => { if (enlarged) dialog.current?.showModal() }, [enlarged])
-  useEffect(() => { const input = textarea.current; if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 140)}px` } }, [prompt, workspaceTab])
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSidebarOpen(false) }
-    const onResize = () => { if (window.innerWidth >= 800) setSidebarOpen(false) }
-    window.addEventListener('keydown', onKey); window.addEventListener('resize', onResize)
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize) }
+    const query = window.matchMedia(sessionLayout)
+    const update = () => setDesktop(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k' || document.querySelector('dialog[open]:not(.session-sheet)')) return
+      event.preventDefault()
+      setWorkspaceTab('chat')
+      requestAnimationFrame(() => {
+        if (sessionSheet.current && !sessionSheet.current.open) sessionSheet.current.showModal()
+        searchInput.current?.focus()
+        searchInput.current?.select()
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  async function switchChat(id: string, fresh = false) {
+  async function switchChat(id: string, fresh = false, nextTab: WorkspaceTab = 'chat') {
     if (!draftReady || reading.current) return
     setDraftReady(false)
     try {
       await draftWrites.current
       const draft = fresh ? undefined : await loadSimpleDraft(id)
       restoreDraft(draft, id)
-      setChatId(id); setWorkspaceTab('chat'); setRebuildContext(false); setError(''); setAttachmentMessage(''); setSidebarOpen(false)
+      setChatId(id)
+      setWorkspaceTab(nextTab)
+      setRebuildContext(false)
+      setError('')
+      setAttachmentMessage('')
+      if (!fresh && nextTab === 'chat') requestAnimationFrame(() => workbench.current?.focus({ preventScroll: true }))
     } catch { setError('对话草稿读取失败，请重试。') }
     finally { setDraftReady(true) }
   }
 
   async function newChat() {
     if (!draftReady || reading.current) return
+    sessionSheet.current?.close()
     setSearch('')
-    if (!chats.find((chat) => chat.id === chatId)?.archived && !currentRecords.length && !prompt.trim() && !attachments.length) { setWorkspaceTab('chat'); setSidebarOpen(false); return }
+    if (!currentChat?.archived && !currentRecords.length && !prompt.trim() && !attachments.length) {
+      setWorkspaceTab('studio')
+      if (!busy) requestAnimationFrame(() => textarea.current?.focus())
+      return
+    }
     const chat = { id: crypto.randomUUID(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now() }
     setChats((current) => [chat, ...current])
     void saveSimpleChat(chat).catch(() => setStorageMessage('对话保存失败。'))
-    await switchChat(chat.id, true)
+    await switchChat(chat.id, true, 'studio')
+    if (!busy) requestAnimationFrame(() => textarea.current?.focus())
+  }
+
+  function goToStudio() {
+    if (!draftReady || reading.current) return
+    if (currentRecords.length || currentChat?.archived) void newChat()
+    else setWorkspaceTab('studio')
   }
 
   async function updateChat(chat: SimpleChat) {
@@ -217,10 +249,10 @@ export function SimpleGenerator() {
       setChats((current) => current.map((item) => item.id === chat.id ? chat : item))
       if (chat.id === chatId && (chat.deletedAt || chat.archived)) {
         const next = chats.find((item) => item.id !== chat.id && !item.archived && !item.deletedAt)
-        if (next) await switchChat(next.id)
+        if (next) await switchChat(next.id, false, workspaceTab)
         else {
           const fresh = { id: crypto.randomUUID(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now() }
-          await saveSimpleChat(fresh); setChats((current) => [fresh, ...current]); await switchChat(fresh.id, true)
+          await saveSimpleChat(fresh); setChats((current) => [fresh, ...current]); await switchChat(fresh.id, true, workspaceTab)
         }
       }
     } catch { setError('对话保存失败，请重试。') }
@@ -228,14 +260,15 @@ export function SimpleGenerator() {
 
   async function reuseImage(src: string, name: string, source?: ImageSource) {
     if (active.current || reading.current || !draftReady) return
-    if (source && attachments.some((file) => file.id === source.id || file.sourceAsset === source.sourceAsset)) { setWorkspaceTab('chat'); return }
+    const target = workspaceTab === 'gallery' && !currentRecords.length ? 'studio' : 'chat'
+    if (source && attachments.some((file) => file.id === source.id || file.sourceAsset === source.sourceAsset)) { setWorkspaceTab(target); return }
     if (attachments.length >= MAX_INPUT_IMAGES) { setError(`最多添加 ${MAX_INPUT_IMAGES} 张参考图。`); return }
     reading.current = true; setReadingFiles(true)
     try {
       const dataUrl = await toApiInputImageDataUrl(src)
       setAttachments((current) => [...current, { id: source?.id || (source ? `reused-${source.sourceAsset}` : crypto.randomUUID()), name, dataUrl, createdAt: Date.now(), origin: source?.origin || 'uploaded', sourceAsset: source?.sourceAsset }])
       setParams((current) => ({ ...current, output_format: current.output_format === 'gif' ? 'gif' : 'png' })); setTools((current) => ({ ...current, images: true }))
-      setWorkspaceTab('chat'); requestAnimationFrame(() => textarea.current?.focus())
+      setWorkspaceTab(target); requestAnimationFrame(() => textarea.current?.focus())
     } catch { setError('图片读取失败，请重试。') }
     finally { reading.current = false; setReadingFiles(false) }
   }
@@ -298,7 +331,7 @@ export function SimpleGenerator() {
     event.preventDefault()
     if (!historyReady || !draftReady || active.current || reading.current || !prompt.trim()) return
     setError('')
-    if (!connection.apiKey.trim()) { openSettings(); return }
+    if (!configured) { openSettings(true); return }
     if (markup && responses) { setError('标记引导仅支持直接生图（Images API），请切换创作方式后发送。'); return }
     if (image25 && animated) { setError('GPT Image 2.5 请使用 PNG、JPEG 或 WebP 输出；SVG / GIF 请选择 2.6。'); return }
     const sizeError = !mask && (!responses || tools.images) ? getSimpleSizeError(size, params.output_format) : null
@@ -399,41 +432,101 @@ export function SimpleGenerator() {
     } catch (err) { setError(err instanceof Error ? err.message : '文件下载失败。') }
   }
 
-  return <div className={`chat-app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-    {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="关闭对话栏" onClick={() => setSidebarOpen(false)}/>}
-    <aside className={`chat-sidebar${sidebarOpen ? ' is-open' : ''}`} aria-label="对话栏" id="conversation-sidebar">
-      <div className="sidebar-brand"><img src={appIcon} width="28" height="28" alt=""/><span className="sidebar-brand-text"><span title="图作间">图作间</span><small className="app-version">V1.0</small></span><button type="button" className="icon-button desktop-only sidebar-collapse" aria-label="收起侧栏" aria-expanded={true} aria-controls="conversation-sidebar" title="收起侧栏" onClick={() => setSidebarCollapsed(true)}><Icon name="panel"/></button><button type="button" className="icon-button mobile-only" aria-label="关闭对话栏" onClick={() => setSidebarOpen(false)}><Icon name="close"/></button></div>
-      <button type="button" className="new-chat" aria-label="新建对话" onClick={() => void newChat()} disabled={!draftReady}><Icon name="plus"/>新对话</button>
-      <nav className="sidebar-nav" aria-label="工作区">{views.map((view) => <button type="button" key={view.id} className={workspaceTab === view.id ? 'is-active' : ''} aria-pressed={workspaceTab === view.id} onClick={() => { setWorkspaceTab(view.id); setSidebarOpen(false) }}><Icon name={view.icon}/>{view.label}</button>)}</nav>
-      <SimpleChatList chats={chats} records={records} chatId={workspaceTab === 'chat' ? chatId : ''} busyChat={busyChat} disabled={!draftReady || readingFiles} onSelect={(id) => void switchChat(id)} onChange={updateChat} search={search} onSearch={setSearch}/>
-      <div className="sidebar-bottom"><button type="button" onClick={() => openSettings()}><Icon name="settings"/>连接设置</button><a href="https://github.com/CookSleep/gpt_image_playground" target="_blank" rel="noreferrer">GPT Image Playground · MIT ↗</a></div>
-      <SimpleSidebarResize/>
-    </aside>
-    <main className="chat-main" inert={sidebarOpen ? true : undefined}>
-      <header className={`chat-header${workspaceTab === 'gallery' ? ' gallery-header' : ''}`}><button type="button" className="icon-button mobile-only" aria-label="打开对话栏" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}><Icon name="menu"/></button>{sidebarCollapsed && <button type="button" className="icon-button desktop-only" aria-label="展开侧栏" aria-expanded={false} aria-controls="conversation-sidebar" title="展开侧栏" onClick={() => setSidebarCollapsed(false)}><Icon name="panel"/></button>}<div className="header-model">{workspaceTab === 'chat' && responses ? <SimpleChoice label="对话模型" value={connection.responseModel} options={RESPONSE_MODEL_CHOICES} onChange={(responseModel) => setConnection({ ...connection, responseModel })} disabled={busy} help={<><HelpRows rows={[["用途", "理解想法、记住上下文并调用图片工具。"], ["菜单排序", "标准文本单价从低到高。"], ["价格单位", "美元／百万 token，按输入与输出用量计费。"], ["费用差异", "缓存、长上下文和服务档位会影响费用。"]]} note="图片生成与其它工具另计。"/><p><a href="https://developers.openai.com/api/docs/models/gpt-5.4-mini" target="_blank" rel="noreferrer">Mini 定价</a> · <a href="https://developers.openai.com/api/docs/models/gpt-6.1-sol" target="_blank" rel="noreferrer">Sol 定价</a> · <a href="https://developers.openai.com/api/docs/models/gpt-6-astra" target="_blank" rel="noreferrer">Astra 定价</a></p></>}><p className="choice-price-unit">美元／百万 token · 价格由低到高</p></SimpleChoice> : <h1>{workspaceTab === 'chat' ? '图作间' : views.find((view) => view.id === workspaceTab)!.label}</h1>}</div>{workspaceTab === 'gallery' && <div className="gallery-header-tools" ref={setGalleryToolbar}/>}</header>
-      <SimpleWorkspace galleryToolbar={galleryToolbar} activeTab={workspaceTab} chatRecords={currentRecords} galleryItems={galleryItems} onDeleteImage={async (item) => { await draftWrites.current; setDeletedGallery(await deleteSimpleGalleryImage(item)) }} busy={busy && busyChat === chatId} seconds={seconds} previews={busyChat === chatId ? previews : {}} ready={historyReady} storageMessage={storageMessage} error={error} onEnlarge={setEnlarged} onError={setError} onDownloadFile={downloadOutputFile} onEdit={editImage} onReuse={(src, name, source) => void reuseImage(src, name, source)} onRetry={(record) => void reuseRecord(record)} resultArea={resultArea} chatId={chatId}/>
-      {workspaceTab === 'chat' && <div className="composer-dock"><form className="chat-composer" onSubmit={generate}>
+  const price = estimate && usesImages ? <span className="composer-price">图片输出预估 <strong>¥{(estimate.outputUsd * exchangeRate).toFixed(2)}</strong><span className="usd-price"> / ${estimate.outputUsd.toFixed(4)}</span><Info label="费用预估"><HelpRows rows={[
+    ['本次估算', estimateSize.replace('x', '×') + ' · ' + estimateQuality + ' · ' + params.n + ' 张'],
+    ['自动参数', '按横向 1080P 与高画质估算。'],
+    ['计费范围', '仅含图片输出；输入、预览、对话和其它工具另计。'],
+  ]} note="实际费用以服务商账单为准。"/></Info></span> : <span>{usesImages ? animated ? '此格式暂无费用预估' : '此尺寸暂无费用预估' : '当前为文字对话'}</span>
 
-        <div className="composer-input" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addAttachments(Array.from(event.dataTransfer.files)) }} onPaste={(event) => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); void addAttachments(files) } }}>
-          {!!attachments.length && <div className="composer-attachments">{attachments.map((file, i) => <div className="composer-attachment" key={file.id}><button type="button" aria-label={`查看参考图 ${i+1}：${file.name}`} onClick={() => setEnlarged(file.dataUrl)}><img src={file.dataUrl} alt={file.name}/></button><button type="button" className="edit-composer-attachment" disabled={busy} onClick={() => setEditingImage(file)} aria-label={`编辑参考图 ${i+1}`}>{mask?.targetId === file.id ? markup ? '已标记' : '已选区' : '编辑'}</button><button type="button" className="remove-composer-attachment" aria-label={`移除参考图 ${i+1}`} disabled={busy} onClick={() => { setAttachments((current) => current.filter((item) => item.id !== file.id)); if (mask?.targetId === file.id) setMask(undefined) }}>×</button></div>)}</div>}
-          <textarea ref={textarea} aria-label="提示词" placeholder={mask ? markup ? '描述标记位置要怎么改，例如：把圈中的花瓶换成蓝色…' : '描述选区要怎么改，例如：换成米白色沙发…' : responses ? '描述画面，或继续修改上一张图片…' : '描述你想生成的图片…'} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={busy || readingFiles || !draftReady} rows={2} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }}/>
-          <div className="composer-actions"><div className="composer-tools"><SimplePopover label="添加图片" triggerClassName="attachment-button" button={<Icon name="attach"/>} disabled={busy || readingFiles || !draftReady}><div className="chat-action-menu"><button type="button" disabled={attachments.length >= MAX_INPUT_IMAGES} onClick={(event) => { event.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover(); setGalleryPicker(true) }}>从图库中选择图片</button><button type="button" disabled={attachments.length >= MAX_INPUT_IMAGES} onClick={(event) => { event.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover(); fileInput.current?.click() }}>上传图片</button></div></SimplePopover><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={(event) => { void addAttachments(Array.from(event.target.files || [])); event.target.value = '' }}/>{responses && <SimplePopover label="工具" triggerClassName="tools-icon-button" button={<Icon name="tools"/>}><fieldset className="tool-menu" disabled={busy}><h3>工具</h3>{([['images','图片生成'],['web','联网搜索'],['code','计算与文件'],['files','文件检索']] as const).map(([key,label]) => <div className="tool-option" key={key}><label><input type="checkbox" checked={tools[key]} onChange={(event) => setTools({ ...tools, [key]: event.target.checked })}/>{label}</label><Info label={label}><HelpRows rows={key === 'images' ? [['开启', '使用所选 GPT Image 模型生成或编辑图片。'], ['关闭', '仅使用其余已启用的工具。']] : key === 'web' ? [['用途', '查找新信息，例如今年的海报趋势。'], ['费用', '搜索另计费。']] : key === 'code' ? [['用途', '计算和制作文件，例如配色表。'], ['费用', '代码容器另计费。'], ['保存', '生成的文件请及时下载。']] : [['用途', '从已有知识库找资料，例如品牌手册。'], ['配置', '需填写 vs_ ID。'], ['费用', '检索与存储另计费。']]} /></Info></div>)}{tools.files && <label className="tool-input-label">向量库 ID<input aria-label="向量库 ID" placeholder="vs_…，多个用逗号分隔" value={tools.vectorStoreIds} onChange={(event) => setTools({ ...tools, vectorStoreIds: event.target.value })}/></label>}{tools.images && <div className="setting-row"><span>图片操作<Info label="图片操作"><HelpRows rows={[["auto", "由模型决定新建或编辑。"], ["generate", "新建图片。"], ["edit", "强制编辑，需要参考图或已有图片上下文。"]]}/></Info></span><select aria-label="图片操作" value={tools.action} onChange={(event) => setTools({ ...tools, action: event.target.value as SimpleTools['action'] })}><option value="auto">自动（auto）</option><option value="generate">新建图片（generate）</option><option value="edit">编辑图片（edit）</option></select></div>}</fieldset></SimplePopover>}<SimpleChoice buttonLabel={responses ? '对话创作' : '直接生图'} label="创作方式" value={connection.apiMode} disabled={busy} onChange={(value) => setConnection({ ...connection, apiMode: value as 'responses' | 'images' })} options={[{value: 'responses',label: '对话创作（Responses API）'}, {value: 'images',label: '直接生图（Images API）'}]} help={<HelpRows rows={[["对话创作", "可连续修改，例如“把它改成夜景”。"], ["直接生图", "调用 Images API，按本次描述与参考图生成。"]]}/>}/>{(!responses || tools.images || mask) && <SimpleImageSettings onReset={() => { setParams({ ...DEFAULT_PARAMS }); setCustomSize(SIMPLE_DEFAULT_SIZE); setBackground('auto'); setPartialCount(0); setTools((current) => ({ ...current, action: 'auto' })) }} exchangeRate={exchangeRate} params={params} setParams={setParams} imageModel={connection.model} onModelChange={(model) => { setConnection({ ...connection, model }); if (model.startsWith('gpt-image-2.5-') && animated) { setParams((current) => ({ ...current, output_format: 'png', size: SIMPLE_DEFAULT_SIZE })); setCustomSize(SIMPLE_DEFAULT_SIZE) } }} customSize={customSize} setCustomSize={setCustomSize} background={background} setBackground={setBackground} partialCount={partialCount} setPartialCount={setPartialCount} busy={busy || readingFiles || !draftReady} hasAttachments={!!attachments.length} responses={responses}/>}<SimplePopover label="更多操作" button={<span aria-hidden="true">•••</span>}><div className="chat-action-menu">{mask && <button type="button" disabled={busy} onClick={(e) => { setMask(undefined); e.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover() }}>{markup ? '移除编辑标记' : '移除编辑选区'}</button>}{responses && !!currentRecords.length && <><button type="button" disabled={busy} aria-pressed={rebuildContext} onClick={(e) => { setRebuildContext(!rebuildContext); e.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover() }}>{rebuildContext ? '取消重建上下文' : '重建上下文'}</button></>}<button type="button" onClick={(e) => { e.currentTarget.closest<HTMLElement>('[popover]')?.hidePopover(); openSettings() }}>连接设置</button></div></SimplePopover></div>{busy && responses ? <button type="button" className="send-button" aria-label="停止响应" title="停止响应" onClick={() => controller.current?.abort()}><Icon name="stop"/></button> : <button type="submit" className="send-button" aria-label="发送" title="发送" disabled={busy || readingFiles || !draftReady || !prompt.trim()}>{busy || readingFiles ? <span className="spinner"/> : <Icon name="send"/>}</button>}</div>
+  const responseModel = responses && <SimpleChoice label="对话模型" triggerClassName="response-model"
+    value={connection.responseModel} options={RESPONSE_MODEL_CHOICES}
+    onChange={(value) => setConnection((current) => ({ ...current, responseModel: value }))} disabled={locked}
+    help={<><HelpRows rows={[
+      ['用途', '理解想法、记住上下文并调用图片工具。'],
+      ['计费', '以美元／百万 token 计，图片生成和其它工具另计。'],
+      ['费用差异', '缓存、长上下文和服务档位会影响费用。'],
+    ]}/><p><a href="https://developers.openai.com/api/docs/models/gpt-5.4-mini" target="_blank" rel="noreferrer">Mini 定价</a> · <a href="https://developers.openai.com/api/docs/models/gpt-6.1-sol" target="_blank" rel="noreferrer">Sol 定价</a> · <a href="https://developers.openai.com/api/docs/models/gpt-6-astra" target="_blank" rel="noreferrer">Astra 定价</a></p></>}>
+    <p className="choice-price-unit">美元／百万 token · 价格由低到高</p>
+  </SimpleChoice>
+  const composer = <StudioComposer textarea={textarea} prompt={prompt} continuing={currentRecords.length > 0} onChange={setPrompt} onSubmit={generate}
+        attachments={attachments} onAddFiles={(files) => void addAttachments(files)} onChooseFromGallery={() => setGalleryPicker(true)} onEdit={setEditingImage} onEnlarge={openPreview} onRemove={(file) => { setAttachments((current) => current.filter((item) => item.id !== file.id)); setAttachmentMessage(''); if (mask?.targetId === file.id) setMask(undefined) }}
+        mask={mask} onRemoveMask={() => setMask(undefined)} mode={connection.apiMode} onModeChange={(apiMode) => setConnection({ ...connection, apiMode })} tools={tools} onToolsChange={setTools}
+        imageSettings={usesImages && <SimpleImageSettings onReset={() => { setParams({ ...DEFAULT_PARAMS }); setCustomSize(SIMPLE_DEFAULT_SIZE); setBackground('auto'); setPartialCount(0); setTools((current) => ({ ...current, action: 'auto' })) }} exchangeRate={exchangeRate} params={params} setParams={setParams} imageModel={connection.model} onModelChange={(model) => { setConnection({ ...connection, model }); if (model.startsWith('gpt-image-2.5-') && animated) { setParams((current) => ({ ...current, output_format: 'png', size: SIMPLE_DEFAULT_SIZE })); setCustomSize(SIMPLE_DEFAULT_SIZE) } }} customSize={customSize} setCustomSize={setCustomSize} background={background} setBackground={setBackground} partialCount={partialCount} setPartialCount={setPartialCount} busy={locked} hasAttachments={!!attachments.length} responses={responses}/>}
+        ready={draftReady} busy={busy} elsewhere={busy && busyChat !== chatId} readingFiles={readingFiles} attachmentMessage={attachmentMessage} canRebuild={responses && !!currentRecords.length} rebuildContext={rebuildContext} onToggleRebuild={() => setRebuildContext(!rebuildContext)} onStop={() => controller.current?.abort()} price={price} responseModel={responseModel}/>
+
+  const sessions = <div className="session-list">
+    <div className="session-list-heading">
+      <h2 id="session-list-title">对话</h2>
+      <button className="icon-button session-new" type="button" title="新建对话" aria-label="新建对话"
+        onClick={() => void newChat()} disabled={!draftReady || readingFiles}><StudioIcon name="plus" size={19}/></button>
+      {!desktop && <button className="icon-button" type="button" aria-label="关闭对话列表" onClick={() => sessionSheet.current?.close()}><StudioIcon name="close" size={19}/></button>}
+    </div>
+    <SimpleChatList chats={chats} records={records} chatId={chatId} busyChat={busyChat}
+      disabled={!draftReady || readingFiles} onSelect={(id) => { sessionSheet.current?.close(); void switchChat(id) }}
+      onChange={updateChat} search={search} onSearch={setSearch} searchRef={searchInput}/>
+  </div>
+
+  const workspace = <SimpleWorkspace activeTab={workspaceTab} chatRecords={currentRecords} galleryItems={galleryItems}
+    onDeleteImage={async (item) => { await draftWrites.current; setDeletedGallery(await deleteSimpleGalleryImage(item)) }}
+    busy={busy && busyChat === chatId} imageActionsLocked={locked} seconds={seconds}
+    previews={busyChat === chatId ? previews : {}} ready={historyReady} storageMessage={storageMessage}
+    error={error} onEnlarge={openPreview} onError={setError} onDownloadFile={downloadOutputFile}
+    onEdit={editImage} onReuse={(src, name, source) => void reuseImage(src, name, source)}
+    onRetry={(record) => void reuseRecord(record)} chatId={chatId} title={currentChat?.title || '当前创作'}
+    composer={composer} dark={dark} onStart={goToStudio}/>
+
+  return <div className="studio-app">
+    <StudioSky dark={dark}/>
+    <a className="skip-link" href="#workspace-main">跳到工作区</a>
+    <header className="studio-masthead">
+      <button type="button" className="studio-brand" onClick={goToStudio} aria-label="图作间，回到创作台">
+        <img src={appIcon} width="40" height="40" alt=""/>
+        <span><strong>图作间</strong><small lang="en">IMAGE STUDIO</small></span>
+      </button>
+      <nav className="studio-nav" aria-label="工作区">
+        {views.map((view) => <button type="button" key={view.id} aria-current={workspaceTab === view.id ? 'page' : undefined}
+          onClick={() => view.id === 'studio' ? goToStudio() : setWorkspaceTab(view.id)}>
+          <StudioIcon name={view.icon} size={17}/>
+          <span>{view.label}</span>
+          {view.id === 'chat' && busy && <i className="nav-activity" aria-hidden="true"/>}
+        </button>)}
+      </nav>
+      <div className="masthead-actions">
+        {workspaceTab !== 'chat' && <button type="button" className="masthead-new icon-button"
+          aria-label="新建对话" title="新建对话" onClick={() => void newChat()} disabled={!draftReady || readingFiles}>
+          <StudioIcon name="plus" size={19}/>
+        </button>}
+        <button type="button" className="theme-trigger icon-button" onClick={toggleTheme}
+          title={dark ? '切换到浅色模式' : '切换到深色模式'} aria-label={dark ? '切换到浅色模式' : '切换到深色模式'}>
+          <StudioIcon name={dark ? 'sun' : 'moon'} size={19}/>
+        </button>
+        <button type="button" className={'connection-trigger' + (configured ? ' is-configured' : '')}
+          onClick={() => openSettings()} aria-label={configured ? '连接设置（已配置 API）' : '连接 API'}
+          title={configured ? '连接设置' : '连接 API'}>
+          <i aria-hidden="true"/><span>{configured ? 'API 已配置' : '连接 API'}</span><StudioIcon name="plug" size={15}/>
+        </button>
+      </div>
+    </header>
+    <main ref={workbench} id="workspace-main" tabIndex={-1} className="studio-main">
+      {workspaceTab === 'chat' ? <div className="session-layout">
+        {desktop ? <aside className="session-sidebar" aria-labelledby="session-list-title">{sessions}</aside>
+          : <dialog ref={sessionSheet} className="session-sheet" aria-labelledby="session-list-title"
+            onClick={(event) => { if (event.target === event.currentTarget) sessionSheet.current?.close() }}>{sessions}</dialog>}
+        <div className="session-workbench">
+          {!desktop && <div className="session-mobile-toolbar">
+            <button type="button" className="secondary-button" onClick={() => sessionSheet.current?.showModal()}><StudioIcon name="panel" size={16}/>对话列表</button>
+          </div>}
+          {workspace}
+          {composer}
         </div>
-        <div className="composer-caption"><span className="composer-caption-left">{estimate && (!responses || tools.images || mask) ? <span title={`按 ${estimateSize.replace('x', '×')}、${estimateQuality} 画质、${params.n} 张估算。自动尺寸按横向 1080P，自动画质按 high；仅含图片输出，输入、预览、对话及其它工具费用另计，实际账单为准。`}>图片输出大约 <strong>¥{(estimate.outputUsd * exchangeRate).toFixed(2)}</strong><small> ${estimate.outputUsd.toFixed(4)}</small></span> : <span>{!responses || tools.images || mask ? animated ? '此格式暂不支持费用预估' : '当前尺寸暂不支持费用预估' : '纯文字对话'}</span>}{(attachmentMessage || readingFiles || mask) && <span role="status">{attachmentMessage || (readingFiles ? '正在读取参考图…' : markup ? '标记引导 · Images API' : '局部编辑 · 保留原尺寸和选区外内容')}</span>}</span><span>{rebuildContext ? '下次重建上下文' : responses ? 'Responses API' : 'Images API'}</span></div>
-      </form></div>}
+      </div> : workspace}
     </main>
+
     {galleryPicker && <SimpleGalleryPicker items={galleryItems} attachments={attachments} maxSelection={MAX_INPUT_IMAGES - attachments.length} onConfirm={addGalleryImages} onClose={() => setGalleryPicker(false)}/>}
-    {editingImage && <SimpleMaskEditor attachment={editingImage} mask={mask?.targetId === editingImage.id ? mask : undefined} onClose={() => setEditingImage(null)} onApply={(target, selectedMask) => { setAttachments((current) => [target, ...current.filter((file) => file.id !== editingImage.id && file.id !== target.id)]); setMask(selectedMask); if (selectedMask.mode === 'markup') setConnection((current) => ({ ...current, apiMode: 'images' })); setEditingImage(null); setParams((current) => ({ ...current, output_format: 'png' })); setTools((current) => ({ ...current, images: true })); setWorkspaceTab('chat'); requestAnimationFrame(() => textarea.current?.focus()) }}/>}
-    <dialog ref={settingsDialog} className="settings-dialog" aria-labelledby="settings-title" onClose={() => setShowKey(false)} onCancel={(event) => { if (backupBusy) event.preventDefault() }} onClick={(event) => { if (!backupBusy && event.target === event.currentTarget) settingsDialog.current?.close() }}>
-      <div className="dialog-heading"><h2 id="settings-title">设置</h2><button type="button" className="text-button settings-close" aria-label="关闭设置" disabled={backupBusy} onClick={() => settingsDialog.current?.close()}>✕</button></div>
-      <form onSubmit={(event) => { event.preventDefault(); if (!backupBusy) settingsDialog.current?.close() }}><fieldset disabled={backupBusy}>
-        <div className="label-line"><span><label htmlFor="api-key">API Key</label><Info label="API Key"><HelpRows rows={[["用途", "连接你的账号。"], ["发送至", "下方配置的接口地址。"], ["保存", "当前浏览器。"]]} note="共享设备用完请清除 Key。"/></Info></span></div><div className="key-input"><input id="api-key" type={showKey ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder="粘贴 API Key" value={connection.apiKey} onChange={(event) => setConnection({ ...connection, apiKey: event.target.value })} autoFocus/><button type="button" className="text-button" aria-label={showKey ? '隐藏 API Key' : '显示 API Key'} onClick={() => setShowKey(!showKey)}>{showKey ? '隐藏' : '显示'}</button></div><div className="connection-note"><span>{saved ? connection.apiKey ? '已保存在此浏览器' : '输入后自动保存' : '仅本次使用'}</span><button type="button" className="text-button" onClick={() => setConnection({ ...connection, apiKey: '' })}>清除 Key</button></div>
-        <fieldset disabled={busy}><div className="setting-row"><span>接口地址<Info label="接口地址"><HelpRows rows={[["官方地址", "https://api.openai.com"], ["兼容服务", "也可填写兼容接口地址，须允许浏览器跨域访问。"], ["发送内容", "Key、提示词与对话内容。"]]}/></Info></span><input aria-label="接口地址" type="url" value={connection.baseUrl} onChange={(event) => setConnection({ ...connection, baseUrl: event.target.value })} required/></div><div className="setting-row"><span>最长等待（秒）<Info label="最长等待"><HelpRows rows={[["范围", "30–3600 秒。"], ["网关超时", "不能通过此设置延长。"], ["自动重试", "不会自动重试付费请求。"]]}/></Info></span><input aria-label="最长等待（秒）" type="number" min="30" max="3600" value={timeout} onChange={(event) => setTimeoutValue(Number(event.target.value))} required/></div><div className="setting-row"><span>美元换算汇率<Info label="美元换算汇率"><HelpRows rows={[["含义", "1 美元兑换的人民币金额。"], ["默认值", "7，仅为示例，并非实时汇率。"], ["用途", "发送前的费用预估。"]]}/></Info></span><input aria-label="美元换算汇率" type="number" min="0.01" max="1000" step="0.01" value={exchangeRate} onChange={(event) => setExchangeRate(Number(event.target.value))} required/></div></fieldset>
-        <p className="settings-note">本地记录与原图保存在此浏览器。Responses 上下文也会保存在服务端，用于连续对话。</p>
-        <p className="settings-note"><a href={licenseUrl} download="LICENSE.txt">MIT 许可证</a> · <a href={noticesUrl} target="_blank" rel="noreferrer">第三方许可</a> · <a href={exampleSourcesUrl} target="_blank" rel="noreferrer">示例来源</a></p></fieldset>
-      <SimpleDataBackup disabled={busy || readingFiles || !draftReady} beforeTransfer={async () => { await draftWrites.current }} onBusyChange={setBackupBusy}/>
-      <button className="settings-done" type="submit" disabled={backupBusy}>完成</button></form>
+    {editingImage && <SimpleMaskEditor attachment={editingImage} mask={mask?.targetId === editingImage.id ? mask : undefined} onClose={() => setEditingImage(null)} onApply={(target, selectedMask) => { setAttachments((current) => [target, ...current.filter((file) => file.id !== editingImage.id && file.id !== target.id)]); setMask(selectedMask); if (selectedMask.mode === 'markup') setConnection((current) => ({ ...current, apiMode: 'images' })); setEditingImage(null); setParams((current) => ({ ...current, output_format: 'png' })); setTools((current) => ({ ...current, images: true })); if (workspaceTab === 'gallery') setWorkspaceTab(currentRecords.length ? 'chat' : 'studio'); requestAnimationFrame(() => textarea.current?.focus()) }}/>}
+    <StudioSettings dialog={settingsDialog} apiKey={connection.apiKey} baseUrl={connection.baseUrl} onConnectionChange={(patch) => setConnection((current) => ({ ...current, ...patch }))} timeout={timeout} onTimeoutChange={setTimeoutValue} exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} saved={saved} busy={locked} beforeTransfer={async () => { await draftWrites.current }}/>
+    <dialog ref={dialog} className="image-dialog" aria-labelledby="preview-title" onClose={() => setEnlarged(null)} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close() }}>
+      {enlarged && <><header><span id="preview-title">{enlarged.label}</span><button type="button" className="close-preview icon-button" aria-label="关闭预览" onClick={() => dialog.current?.close()}><StudioIcon name="close"/></button></header><img src={enlarged.src} alt={enlarged.label}/></>}
     </dialog>
-    <dialog ref={dialog} className="image-dialog" aria-label="图片大图预览" onClose={() => setEnlarged('')} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close() }}><button type="button" className="close-preview" aria-label="关闭预览" onClick={() => dialog.current?.close()}>✕</button>{enlarged && <img src={enlarged} alt="图片大图预览"/>}</dialog>
   </div>
 }

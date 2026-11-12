@@ -26,8 +26,10 @@ import { StudioIcon } from './StudioIcon'
 import { StudioComposer } from './StudioComposer'
 import { StudioSettings } from './StudioSettings'
 import { StudioSky } from './StudioSky'
+import { StudioThemeMenu } from './StudioThemeMenu'
 import { useStudioTheme } from '../lib/studioTheme'
 import appIcon from '../assets/icon.svg'
+import classicIcon from '../assets/classic-icon.svg'
 
 const MODELS = SIMPLE_IMAGE_MODELS.map((model) => model.value)
 const STORAGE_KEY = 'gpt-image-simple-connection'
@@ -40,7 +42,8 @@ const views = [
 const sessionLayout = '(min-width: 821px)'
 
 export function SimpleGenerator() {
-  const { theme, toggle: toggleTheme } = useStudioTheme()
+  const { appearance, theme, setAppearance, setTheme } = useStudioTheme()
+  const classic = appearance === 'classic'
   const dark = theme === 'dark'
   const [connection, setConnection] = useState(() => {
     const fallback = { apiKey: '', baseUrl: 'https://api.openai.com', model: MODELS[0], apiMode: 'responses' as 'images' | 'responses', responseModel: 'gpt-6.1-sol', defaultsVersion: 2 }
@@ -473,14 +476,14 @@ export function SimpleGenerator() {
     error={error} onEnlarge={openPreview} onError={setError} onDownloadFile={downloadOutputFile}
     onEdit={editImage} onReuse={(src, name, source) => void reuseImage(src, name, source)}
     onRetry={(record) => void reuseRecord(record)} chatId={chatId} title={currentChat?.title || '当前创作'}
-    composer={composer} dark={dark} onStart={goToStudio}/>
+    composer={composer} dark={dark} classic={classic} onStart={goToStudio}/>
 
   return <div className="studio-app">
-    <StudioSky dark={dark}/>
+    {!classic && <StudioSky dark={dark}/>}
     <a className="skip-link" href="#workspace-main">跳到工作区</a>
-    <header className="studio-masthead">
+    <header className="studio-masthead" data-workspace={workspaceTab}>
       <button type="button" className="studio-brand" onClick={goToStudio} aria-label="图作间，回到创作台">
-        <img src={appIcon} width="40" height="40" alt=""/>
+        <img src={classic ? classicIcon : appIcon} width="40" height="40" alt=""/>
         <span><strong>图作间</strong><small lang="en">IMAGE STUDIO</small></span>
       </button>
       <nav className="studio-nav" aria-label="工作区">
@@ -496,10 +499,7 @@ export function SimpleGenerator() {
           aria-label="新建对话" title="新建对话" onClick={() => void newChat()} disabled={!draftReady || readingFiles}>
           <StudioIcon name="plus" size={19}/>
         </button>}
-        <button type="button" className="theme-trigger icon-button" onClick={toggleTheme}
-          title={dark ? '切换到浅色模式' : '切换到深色模式'} aria-label={dark ? '切换到浅色模式' : '切换到深色模式'}>
-          <StudioIcon name={dark ? 'sun' : 'moon'} size={19}/>
-        </button>
+        <StudioThemeMenu appearance={appearance} theme={theme} onAppearanceChange={setAppearance} onThemeChange={setTheme}/>
         <button type="button" className={'connection-trigger' + (configured ? ' is-configured' : '')}
           onClick={() => openSettings()} aria-label={configured ? '连接设置（已配置 API）' : '连接 API'}
           title={configured ? '连接设置' : '连接 API'}>

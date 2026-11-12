@@ -215,16 +215,17 @@ type WorkspaceProps = Omit<ConversationProps, 'records'> & {
   title: string
   composer: ReactNode
   dark: boolean
+  classic: boolean
   onStart: () => void
 }
 
-export function SimpleWorkspace({ activeTab, chatRecords, galleryItems, onDeleteImage, ready, storageMessage, error, chatId, title, composer, dark, onStart, ...conversation }: WorkspaceProps) {
+export function SimpleWorkspace({ activeTab, chatRecords, galleryItems, onDeleteImage, ready, storageMessage, error, chatId, title, composer, dark, classic, onStart, ...conversation }: WorkspaceProps) {
   return <section className={'result-panel view-' + activeTab} aria-label="图片工作区">
     {storageMessage && <p className="storage-message workspace-notice" role="alert">{storageMessage}</p>}
     {error && <p className="error-message workspace-notice" role="alert">{error}</p>}
     <div className="workspace-content">
       {!ready && <div className="workspace-loading" role="status"><span className="spinner"/>正在恢复记录…</div>}
-      {ready && activeTab === 'studio' && <StudioHome composer={composer} dark={dark}/>}
+      {ready && activeTab === 'studio' && <StudioHome composer={composer} dark={dark} classic={classic}/>}
       {ready && activeTab === 'gallery' && <SimpleGallery onStart={onStart} onDelete={onDeleteImage} items={galleryItems}
         onEnlarge={conversation.onEnlarge} onError={conversation.onError} onEdit={conversation.onEdit}
         onReuse={conversation.onReuse} busy={conversation.imageActionsLocked}/>}

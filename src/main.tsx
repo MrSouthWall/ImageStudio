@@ -4,5 +4,6 @@ import { SimpleGenerator } from './components/SimpleGenerator'
 import './styles/app.css'
 import './styles/workspace.css'
 import './styles/overlays.css'
+import './styles/classic.css'
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><SimpleGenerator /></React.StrictMode>)

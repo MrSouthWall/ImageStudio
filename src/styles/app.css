@@ -201,8 +201,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .studio-nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 660; }
 .nav-activity { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .masthead-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
-.masthead-new, .theme-trigger { border: 1px solid var(--line); background: var(--chrome); }
-.theme-trigger { color: var(--accent-text); }
+.masthead-new { border: 1px solid var(--line); background: var(--chrome); }
 .connection-trigger {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 6px 12px;
   border: 1px solid var(--line); border-radius: var(--pill); color: var(--text); background: var(--chrome);

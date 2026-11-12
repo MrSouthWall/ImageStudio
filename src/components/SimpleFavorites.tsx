@@ -13,7 +13,7 @@ type FavoriteActions = {
 type Props = FavoriteActions & {
   items: SimpleFavorite[]
   locked: boolean
-  needsConfirmation: (item: SimpleFavorite) => boolean
+  wouldReplaceInput: (item: SimpleFavorite) => boolean
   onUse: (item: SimpleFavorite, fresh: boolean) => Promise<void>
 }
 
@@ -70,23 +70,24 @@ function FavoriteDetails({ item, onClose, onEnlarge, onError, onUpdate, onRemove
   </dialog>
 }
 
-export function SimpleFavorites({ items, locked, needsConfirmation, onUse, onEnlarge, onError, onUpdate, onRemove }: Props) {
+export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnlarge, onError, onUpdate, onRemove }: Props) {
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(36)
   const [details, setDetails] = useState<SimpleFavorite | null>(null)
-  const [replacing, setReplacing] = useState<SimpleFavorite | null>(null)
+  const [selected, setSelected] = useState<SimpleFavorite | null>(null)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState('')
-  const replaceDialog = useRef<HTMLDialogElement>(null)
+  const useDialog = useRef<HTMLDialogElement>(null)
   const freshButton = useRef<HTMLButtonElement>(null)
+  const replacesInput = selected && wouldReplaceInput(selected)
   const query = search.trim().toLocaleLowerCase()
   const visible = query ? items.filter((item) => [item.title, item.prompt, ...item.attachments.map((file) => file.name)].some((text) => text.toLocaleLowerCase().includes(query))) : items
 
   useEffect(() => {
-    if (!replacing) return
-    replaceDialog.current?.showModal()
+    if (!selected) return
+    useDialog.current?.showModal()
     freshButton.current?.focus()
-  }, [replacing])
+  }, [selected])
 
   async function apply(item: SimpleFavorite, fresh = false) {
     if (applying || locked) return
@@ -94,7 +95,7 @@ export function SimpleFavorites({ items, locked, needsConfirmation, onUse, onEnl
     setError('')
     try {
       await onUse(item, fresh)
-      replaceDialog.current?.close()
+      useDialog.current?.close()
     } catch (err) {
       setError(err instanceof Error && !(err instanceof DOMException) ? err.message : '收藏读取失败，请重试。')
     } finally { setApplying(false) }
@@ -102,7 +103,7 @@ export function SimpleFavorites({ items, locked, needsConfirmation, onUse, onEnl
 
   function select(item: SimpleFavorite) {
     setError('')
-    if (needsConfirmation(item)) setReplacing(item)
+    if (item.prompt.trim()) setSelected(item)
     else void apply(item)
   }
 
@@ -112,7 +113,7 @@ export function SimpleFavorites({ items, locked, needsConfirmation, onUse, onEnl
         <h1>收藏</h1>
         {!!items.length && <label className="favorite-search"><StudioIcon name="search" size={18}/><input type="search" aria-label="搜索收藏" placeholder="搜索收藏" value={search} onChange={(event) => { setSearch(event.target.value); setLimit(36) }}/></label>}
       </header>
-      {error && !replacing && <p className="error-message" role="alert">{error}</p>}
+      {error && !selected && <p className="error-message" role="alert">{error}</p>}
       {visible.length ? <div className="favorites-grid">
         {visible.slice(0, limit).map((item) => {
           const prompt = item.prompt.trim()
@@ -138,15 +139,16 @@ export function SimpleFavorites({ items, locked, needsConfirmation, onUse, onEnl
       {visible.length > limit && <button type="button" className="secondary-button load-history" onClick={() => setLimit((current) => current + 36)}>加载更多</button>}
     </div>
     {details && <FavoriteDetails item={details} onClose={() => setDetails(null)} onEnlarge={onEnlarge} onError={onError} onUpdate={onUpdate} onRemove={onRemove}/>}
-    {replacing && <dialog ref={replaceDialog} className="settings-dialog favorite-replace" aria-labelledby="favorite-replace-title"
-      onClose={() => { setReplacing(null); setError('') }} onCancel={(event) => { if (applying) event.preventDefault() }}>
-      <div className="dialog-heading"><div><h2 id="favorite-replace-title">在哪里使用收藏？</h2><p>当前输入已有内容。在新创作中使用可以保留这份草稿。</p></div>
-        <button className="icon-button settings-close" type="button" aria-label="取消使用收藏" disabled={applying} onClick={() => replaceDialog.current?.close()}><StudioIcon name="close"/></button>
+    {selected && <dialog ref={useDialog} className="settings-dialog" aria-labelledby="favorite-use-title"
+      onClose={() => { setSelected(null); setError('') }} onCancel={(event) => { if (applying) event.preventDefault() }}>
+      <div className="dialog-heading">
+        <div><h2 id="favorite-use-title">在哪里使用收藏？</h2>{replacesInput && <p>当前输入已有内容。在新创作中使用可以保留这份草稿。</p>}</div>
+        <button className="icon-button settings-close" type="button" aria-label="取消使用收藏" disabled={applying} onClick={() => useDialog.current?.close()}><StudioIcon name="close"/></button>
       </div>
       {error && <p className="error-message" role="alert">{error}</p>}
       <div className="favorite-dialog-actions">
-        <button className="secondary-button" type="button" disabled={applying || locked} onClick={() => void apply(replacing)}>替换当前输入</button>
-        <button ref={freshButton} className="primary-button" type="button" disabled={applying || locked} onClick={() => void apply(replacing, true)}>在新创作中使用</button>
+        <button className="secondary-button" type="button" disabled={applying || locked} onClick={() => void apply(selected)}>{replacesInput ? '替换当前输入' : '填入当前输入框'}</button>
+        <button ref={freshButton} className="primary-button" type="button" disabled={applying || locked} onClick={() => void apply(selected, true)}>在新创作中使用</button>
       </div>
     </dialog>}
   </div>

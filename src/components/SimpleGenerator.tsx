@@ -560,7 +560,7 @@ export function SimpleGenerator() {
     onRetry={(record) => void reuseRecord(record)} onFavoriteRecord={(record) => void favoriteInput(record.prompt, record.attachments)}
     chatId={chatId} title={currentChat?.title || '当前创作'}
     favorites={<SimpleFavorites items={favorites} locked={locked} onEnlarge={openPreview} onError={setError} onUse={useFavorite}
-      needsConfirmation={(item) => !!item.prompt.trim() && (!!prompt.trim() || !!item.attachments.length && !!attachments.length)}
+      wouldReplaceInput={(item) => Boolean(prompt.trim() || (item.attachments.length && attachments.length))}
       onUpdate={async (id, title, text) => {
         const saved = await updateSimpleFavorite(id, title, text)
         setFavorites((current) => current.map((item) => item.id === id ? saved : item))

@@ -33,6 +33,7 @@ type Props = {
   rebuildContext: boolean
   onToggleRebuild: () => void
   onFavorite: () => void
+  onChooseFromFavorites: () => void
   onStop: () => void
   price: ReactNode
   responseModel: ReactNode
@@ -40,7 +41,7 @@ type Props = {
 
 const closeMenu = (trigger: HTMLElement) => trigger.closest<HTMLElement>('[popover]')?.hidePopover()
 
-export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmit, attachments, onAddFiles, onChooseFromGallery, onEdit, onEnlarge, onRemove, mask, onRemoveMask, mode, onModeChange, tools, onToolsChange, imageSettings, ready, busy, elsewhere, readingFiles, attachmentMessage, canRebuild, rebuildContext, onToggleRebuild, onFavorite, onStop, price, responseModel }: Props) {
+export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmit, attachments, onAddFiles, onChooseFromGallery, onEdit, onEnlarge, onRemove, mask, onRemoveMask, mode, onModeChange, tools, onToolsChange, imageSettings, ready, busy, elsewhere, readingFiles, attachmentMessage, canRebuild, rebuildContext, onToggleRebuild, onFavorite, onChooseFromFavorites, onStop, price, responseModel }: Props) {
   const fileInput = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
   const [dragging, setDragging] = useState(false)
@@ -91,7 +92,12 @@ export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmi
       <div className="composer-actions">
         <div className="composer-tools">
           <SimplePopover label="添加参考图" triggerClassName="composer-button attachment-button" button={<><StudioIcon name="plus"/><span className="attach-label">参考图</span></>} disabled={locked}>
-            <div className="chat-action-menu"><button type="button" disabled={atLimit} onClick={(event) => { closeMenu(event.currentTarget); fileInput.current?.click() }}><StudioIcon name="upload" size={17}/>上传图片</button><button type="button" disabled={atLimit} onClick={(event) => { closeMenu(event.currentTarget); onChooseFromGallery() }}><StudioIcon name="image" size={17}/>从图库选择</button><p>{atLimit ? `已达到 ${MAX_INPUT_IMAGES} 张参考图的上限` : '也可以拖入或粘贴图片'}</p></div>
+            <div className="chat-action-menu">
+              <button type="button" disabled={atLimit} onClick={(event) => { closeMenu(event.currentTarget); fileInput.current?.click() }}><StudioIcon name="upload" size={17}/>上传图片</button>
+              <button type="button" disabled={atLimit} onClick={(event) => { closeMenu(event.currentTarget); onChooseFromGallery() }}><StudioIcon name="image" size={17}/>从图库选择</button>
+              {mask && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onRemoveMask() }}><StudioIcon name="close" size={17}/>{markup ? '移除编辑标记' : '移除编辑选区'}</button>}
+              <p>{atLimit ? `已达到 ${MAX_INPUT_IMAGES} 张参考图的上限` : '也可以拖入或粘贴图片'}</p>
+            </div>
           </SimplePopover>
           <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={(event) => { onAddFiles(Array.from(event.target.files || [])); event.target.value = '' }}/>
           <SimpleChoice triggerClassName="composer-button mode-button" icon={responses ? 'chat' : 'image'} buttonLabel={responses ? '对话创作' : '直接生图'} label="创作方式" value={mode} disabled={locked} onChange={(value) => onModeChange(value as Props['mode'])} options={[{ value: 'responses', label: '对话创作', detail: '保留对话上下文，可继续修改图片。' }, { value: 'images', label: '直接生图', detail: '只使用本次描述与参考图。' }]} help={<HelpRows rows={[["对话创作", "使用 Responses API，可连续修改，例如“把它改成夜景”。"], ["直接生图", "使用 Images API，每次独立生成。"]]}/>}/>
@@ -100,17 +106,23 @@ export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmi
             <fieldset className="tool-menu" disabled={locked}>
               <h3>对话工具</h3><p>选择此对话可使用的工具。</p>
               {([['images', '图片生成'], ['web', '联网搜索'], ['code', '计算与文件'], ['files', '文件检索']] as const).map(([key, label]) => <div className="tool-option" key={key}><label><input type="checkbox" checked={tools[key]} onChange={(event) => onToolsChange({ ...tools, [key]: event.target.checked })}/>{label}</label><Info label={label}><HelpRows rows={key === 'images' ? [['开启', '使用所选图片模型生成或编辑图片。'], ['关闭', '仅使用其余已启用的工具。']] : key === 'web' ? [['用途', '查找新信息，例如今年的海报趋势。'], ['费用', '搜索另计费。']] : key === 'code' ? [['用途', '计算和制作文件，例如配色表。'], ['费用', '代码容器另计费。'], ['保存', '生成的文件请及时下载。']] : [['用途', '从已有知识库找资料，例如品牌手册。'], ['配置', '需填写 vs_ ID。'], ['费用', '检索与存储另计费。']]}/></Info></div>)}
-              {tools.files && <label className="tool-input-label">向量库 ID<input placeholder="vs_…，多个用逗号分隔" value={tools.vectorStoreIds} onChange={(event) => onToolsChange({ ...tools, vectorStoreIds: event.target.value })}/></label>}
-              {tools.images && <label className="setting-row"><span>图片操作</span><select value={tools.action} onChange={(event) => onToolsChange({ ...tools, action: event.target.value as SimpleTools['action'] })}><option value="auto">自动选择</option><option value="generate">新建图片</option><option value="edit">强制编辑</option></select></label>}
+              {tools.files && <label className="setting-row"><span>向量库 ID</span><input placeholder="vs_…，多个用逗号分隔" value={tools.vectorStoreIds} onChange={(event) => onToolsChange({ ...tools, vectorStoreIds: event.target.value })}/></label>}
+              {tools.images && <div className="setting-row">
+                <span>图片操作</span>
+                <SimpleChoice label="图片操作" value={tools.action} disabled={locked} onChange={(action) => onToolsChange({ ...tools, action })}
+                  options={[{ value: 'auto', label: '自动选择' }, { value: 'generate', label: '新建图片' }, { value: 'edit', label: '强制编辑' }]}/>
+              </div>}
+              {canRebuild && <div className="chat-action-menu">
+                <button type="button" aria-pressed={rebuildContext} onClick={(event) => { closeMenu(event.currentTarget); onToggleRebuild() }}>{rebuildContext ? '取消重建上下文' : '重建上下文'}</button>
+              </div>}
             </fieldset>
           </SimplePopover>}
-          {(canFavorite || mask || canRebuild) && <SimplePopover label="更多操作" triggerClassName="composer-button composer-more" button={<StudioIcon name="more" size={17}/>} disabled={locked}>
+          <SimplePopover label="收藏" triggerClassName="composer-button composer-favorites" button={<StudioIcon name="bookmark" size={17}/>} disabled={locked}>
             <div className="chat-action-menu">
+              <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onChooseFromFavorites() }}><StudioIcon name="stack" size={17}/>使用收藏</button>
               {canFavorite && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onFavorite() }}><StudioIcon name="bookmark" size={17}/>收藏当前输入</button>}
-              {mask && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onRemoveMask() }}>{markup ? '移除编辑标记' : '移除编辑选区'}</button>}
-              {canRebuild && <button type="button" aria-pressed={rebuildContext} onClick={(event) => { closeMenu(event.currentTarget); onToggleRebuild() }}>{rebuildContext ? '取消重建上下文' : '重建上下文'}</button>}
             </div>
-          </SimplePopover>}
+          </SimplePopover>
         </div>
         {busy && responses && !elsewhere ? <button type="button" className="primary-button send-button" onClick={onStop}><StudioIcon name="stop" size={16}/>停止</button> : <button type="submit" className="primary-button send-button" title={`${submitLabel}（Enter）`} disabled={locked || !prompt.trim()}>{busy || readingFiles ? <span className="spinner"/> : <StudioIcon name="send" size={18}/>}<span>{submitLabel}</span></button>}
       </div>

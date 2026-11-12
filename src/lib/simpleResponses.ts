@@ -119,7 +119,7 @@ export async function callSimpleResponses(opts: Options): Promise<SimpleResponse
     const response = await fetch(buildApiUrl(opts.baseUrl, 'responses'), { method: 'POST', headers: { Authorization: `Bearer ${opts.apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(createSimpleResponseBody(opts)), signal: controller.signal, cache: 'no-store' })
     if (!response.ok) {
       const message = await getApiErrorMessage(response)
-      throw new Error(opts.previousResponseId && response.status === 404 ? `${message}\n上下文可能已过期。点击「重建上下文」后重新发送；不会自动重试。` : message)
+      throw new Error(opts.previousResponseId && response.status === 404 ? `${message}\n上下文可能已过期。请在「对话工具」中选择「重建上下文」，然后重新发送。` : message)
     }
     if (!isEventStreamResponse(response)) acceptResponse(await response.json(), true)
     else await readJsonServerSentEvents(response, (event) => {

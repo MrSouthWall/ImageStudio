@@ -15,6 +15,7 @@ type Props = FavoriteActions & {
   locked: boolean
   wouldReplaceInput: (item: SimpleFavorite) => boolean
   onUse: (item: SimpleFavorite, fresh: boolean) => Promise<void>
+  onClosePicker?: () => void
 }
 
 function FavoriteImages({ files, onEnlarge, onError }: Pick<FavoriteActions, 'onEnlarge' | 'onError'> & { files: SimpleAttachment[] }) {
@@ -70,18 +71,21 @@ function FavoriteDetails({ item, onClose, onEnlarge, onError, onUpdate, onRemove
   </dialog>
 }
 
-export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnlarge, onError, onUpdate, onRemove }: Props) {
+export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnlarge, onError, onUpdate, onRemove, onClosePicker }: Props) {
   const [search, setSearch] = useState('')
   const [limit, setLimit] = useState(36)
   const [details, setDetails] = useState<SimpleFavorite | null>(null)
   const [selected, setSelected] = useState<SimpleFavorite | null>(null)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState('')
+  const pickerDialog = useRef<HTMLDialogElement>(null)
   const useDialog = useRef<HTMLDialogElement>(null)
   const freshButton = useRef<HTMLButtonElement>(null)
   const replacesInput = selected && wouldReplaceInput(selected)
   const query = search.trim().toLocaleLowerCase()
   const visible = query ? items.filter((item) => [item.title, item.prompt, ...item.attachments.map((file) => file.name)].some((text) => text.toLocaleLowerCase().includes(query))) : items
+
+  useEffect(() => { pickerDialog.current?.showModal() }, [])
 
   useEffect(() => {
     if (!selected) return
@@ -96,6 +100,7 @@ export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnl
     try {
       await onUse(item, fresh)
       useDialog.current?.close()
+      pickerDialog.current?.close()
     } catch (err) {
       setError(err instanceof Error && !(err instanceof DOMException) ? err.message : '收藏读取失败，请重试。')
     } finally { setApplying(false) }
@@ -107,37 +112,53 @@ export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnl
     else void apply(item)
   }
 
-  return <div className="workspace-pane favorites-pane">
-    <div className="workspace-frame">
-      <header className="index-heading favorites-heading">
-        <h1>收藏</h1>
-        {!!items.length && <label className="favorite-search"><StudioIcon name="search" size={18}/><input type="search" aria-label="搜索收藏" placeholder="搜索收藏" value={search} onChange={(event) => { setSearch(event.target.value); setLimit(36) }}/></label>}
-      </header>
-      {error && !selected && <p className="error-message" role="alert">{error}</p>}
-      {visible.length ? <div className="favorites-grid">
-        {visible.slice(0, limit).map((item) => {
-          const prompt = item.prompt.trim()
-          const [firstLine, ...rest] = prompt.split(/\r?\n/)
-          const summary = firstLine.trim() === item.title ? rest.join('\n').trim() : prompt
-          return <article className="favorite-card" key={item.id}>
-            <h2><button className="favorite-title" type="button" title={item.title} onClick={() => setDetails(item)}><span>{item.title}</span><StudioIcon name="chevronRight" size={16}/></button></h2>
-            {summary && <p className="favorite-summary">{summary}</p>}
-            {!!item.attachments.length && <FavoriteImages files={item.attachments.slice(0, 3)} onEnlarge={onEnlarge} onError={onError}/>}
-            <div className="favorite-card-actions">
-              {!!item.attachments.length && <span>{item.attachments.length} 张参考图</span>}
-              <button className="secondary-button" type="button" disabled={applying || locked} onClick={() => select(item)}>
-                {prompt ? '使用' : '添加参考图'}<StudioIcon name="arrowRight" size={16}/>
-              </button>
-            </div>
-          </article>
-        })}
-      </div> : <div className="favorites-empty">
-        <StudioIcon name={query ? 'search' : 'bookmark'} size={28}/>
-        <h2>{query ? '没有找到相关收藏' : '还没有收藏'}</h2>
-        <p>{query ? '试试其他关键词。' : '在输入框、对话或图库里收藏常用的提示词和参考图。'}</p>
-      </div>}
-      {visible.length > limit && <button type="button" className="secondary-button load-history" onClick={() => setLimit((current) => current + 36)}>加载更多</button>}
-    </div>
+  const searchField = !!items.length && <label className="favorite-search">
+    <StudioIcon name="search" size={18}/>
+    <input type="search" aria-label="搜索收藏" placeholder="搜索收藏" value={search}
+      onChange={(event) => { setSearch(event.target.value); setLimit(36) }}/>
+  </label>
+  const collection = <>
+    {error && !selected && <p className="error-message" role="alert">{error}</p>}
+    {visible.length ? <div className="favorites-grid">
+      {visible.slice(0, limit).map((item) => {
+        const prompt = item.prompt.trim()
+        const [firstLine, ...rest] = prompt.split(/\r?\n/)
+        const summary = firstLine.trim() === item.title ? rest.join('\n').trim() : prompt
+        return <article className="favorite-card" key={item.id}>
+          <h2><button className="favorite-title" type="button" title={item.title} onClick={() => setDetails(item)}><span>{item.title}</span><StudioIcon name="chevronRight" size={16}/></button></h2>
+          {summary && <p className="favorite-summary">{summary}</p>}
+          {!!item.attachments.length && <FavoriteImages files={item.attachments.slice(0, 3)} onEnlarge={onEnlarge} onError={onError}/>}
+          <div className="favorite-card-actions">
+            {!!item.attachments.length && <span>{item.attachments.length} 张参考图</span>}
+            <button className="secondary-button" type="button" disabled={applying || locked} onClick={() => select(item)}>
+              {prompt ? '使用' : '添加参考图'}<StudioIcon name="arrowRight" size={16}/>
+            </button>
+          </div>
+        </article>
+      })}
+    </div> : <div className="favorites-empty">
+      <StudioIcon name={query ? 'search' : 'bookmark'} size={28}/>
+      <h2>{query ? '没有找到相关收藏' : '还没有收藏'}</h2>
+      <p>{query ? '试试其他关键词。' : '在输入框、对话或图库里收藏常用的提示词和参考图。'}</p>
+    </div>}
+    {visible.length > limit && <button type="button" className="secondary-button load-history" onClick={() => setLimit((current) => current + 36)}>加载更多</button>}
+  </>
+
+  return <>
+    {onClosePicker ? <dialog ref={pickerDialog} className="settings-dialog favorite-picker" aria-labelledby="favorite-picker-title"
+      onClose={onClosePicker} onCancel={(event) => { if (applying) event.preventDefault() }}>
+      <div className="dialog-heading">
+        <h2 id="favorite-picker-title">使用收藏</h2>
+        <button className="icon-button settings-close" type="button" aria-label="关闭收藏选择" disabled={applying} onClick={() => pickerDialog.current?.close()}><StudioIcon name="close"/></button>
+      </div>
+      {searchField}
+      <div className="favorite-picker-list">{collection}</div>
+    </dialog> : <div className="workspace-pane favorites-pane">
+      <div className="workspace-frame">
+        <header className="index-heading favorites-heading"><h1>收藏</h1>{searchField}</header>
+        {collection}
+      </div>
+    </div>}
     {details && <FavoriteDetails item={details} onClose={() => setDetails(null)} onEnlarge={onEnlarge} onError={onError} onUpdate={onUpdate} onRemove={onRemove}/>}
     {selected && <dialog ref={useDialog} className="settings-dialog" aria-labelledby="favorite-use-title"
       onClose={() => { setSelected(null); setError('') }} onCancel={(event) => { if (applying) event.preventDefault() }}>
@@ -151,5 +172,5 @@ export function SimpleFavorites({ items, locked, wouldReplaceInput, onUse, onEnl
         <button ref={freshButton} className="primary-button" type="button" disabled={applying || locked} onClick={() => void apply(selected, true)}>在新创作中使用</button>
       </div>
     </dialog>}
-  </div>
+  </>
 }

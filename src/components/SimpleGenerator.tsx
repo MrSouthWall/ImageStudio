@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { DEFAULT_PARAMS, MAX_INPUT_IMAGES, type TaskParams } from '../types'
 import { callImageApi } from '../lib/api'
 import { createDefaultOpenAIProfile, DEFAULT_SETTINGS, normalizeSettings } from '../lib/apiProfiles'
@@ -84,6 +84,7 @@ export function SimpleGenerator() {
   const [chatId, setChatId] = useState('')
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('studio')
   const [galleryPicker, setGalleryPicker] = useState(false)
+  const [favoritePicker, setFavoritePicker] = useState(false)
   const [desktop, setDesktop] = useState(() => window.matchMedia(sessionLayout).matches)
   const sessionSheet = useRef<HTMLDialogElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
@@ -387,7 +388,8 @@ export function SimpleGenerator() {
       setTools(nextTools)
       setError('')
       setAttachmentMessage(changesFormat ? '已切换为 PNG，以使用参考图。' : '')
-      setWorkspaceTab(!fresh && currentRecords.length ? 'chat' : 'studio')
+      const stayInChat = !fresh && (workspaceTab === 'chat' || currentRecords.length > 0)
+      setWorkspaceTab(stayInChat ? 'chat' : 'studio')
       requestAnimationFrame(() => textarea.current?.focus())
     } finally {
       reading.current = false
@@ -536,7 +538,8 @@ export function SimpleGenerator() {
         mask={mask} onRemoveMask={() => setMask(undefined)} mode={connection.apiMode} onModeChange={(apiMode) => setConnection({ ...connection, apiMode })} tools={tools} onToolsChange={setTools}
         imageSettings={usesImages && <SimpleImageSettings onReset={() => { setParams({ ...DEFAULT_PARAMS }); setCustomSize(SIMPLE_DEFAULT_SIZE); setBackground('auto'); setPartialCount(0); setTools((current) => ({ ...current, action: 'auto' })) }} exchangeRate={exchangeRate} params={params} setParams={setParams} imageModel={connection.model} onModelChange={(model) => { setConnection({ ...connection, model }); if (model.startsWith('gpt-image-2.5-') && animated) { setParams((current) => ({ ...current, output_format: 'png', size: SIMPLE_DEFAULT_SIZE })); setCustomSize(SIMPLE_DEFAULT_SIZE) } }} customSize={customSize} setCustomSize={setCustomSize} background={background} setBackground={setBackground} partialCount={partialCount} setPartialCount={setPartialCount} busy={locked} hasAttachments={!!attachments.length} responses={responses}/>}
         ready={draftReady} busy={busy} elsewhere={busy && busyChat !== chatId} readingFiles={readingFiles} attachmentMessage={attachmentMessage} canRebuild={responses && !!currentRecords.length} rebuildContext={rebuildContext} onToggleRebuild={() => setRebuildContext(!rebuildContext)}
-        onFavorite={() => void favoriteInput(prompt, attachments)} onStop={() => controller.current?.abort()} price={price} responseModel={responseModel}/>
+        onFavorite={() => void favoriteInput(prompt, attachments)} onChooseFromFavorites={() => setFavoritePicker(true)}
+        onStop={() => controller.current?.abort()} price={price} responseModel={responseModel}/>
 
   const sessions = <div className="session-list">
     <div className="session-list-heading">
@@ -550,6 +553,23 @@ export function SimpleGenerator() {
       onChange={updateChat} search={search} onSearch={setSearch} searchRef={searchInput}/>
   </div>
 
+  const favoriteProps = {
+    items: favorites,
+    locked,
+    onEnlarge: openPreview,
+    onError: setError,
+    onUse: useFavorite,
+    wouldReplaceInput: (item) => Boolean(prompt.trim() || (item.attachments.length && attachments.length)),
+    onUpdate: async (id, title, text) => {
+      const saved = await updateSimpleFavorite(id, title, text)
+      setFavorites((current) => current.map((item) => item.id === id ? saved : item))
+    },
+    onRemove: async (id) => {
+      await deleteSimpleFavorite(id)
+      setFavorites((current) => current.filter((item) => item.id !== id))
+    },
+  } satisfies ComponentProps<typeof SimpleFavorites>
+
   const workspace = <SimpleWorkspace activeTab={workspaceTab} chatRecords={currentRecords} galleryItems={galleryItems}
     onDeleteImage={async (item) => { await draftWrites.current; setDeletedGallery(await deleteSimpleGalleryImage(item)) }}
     onFavoriteImage={(item) => void favoriteInput('', [{ id: item.attachmentId || `reused-${item.sourceAsset}`, name: item.filename, dataUrl: item.asset, assetKey: item.attachmentId ? undefined : item.id, origin: item.origin, sourceAsset: item.sourceAsset, createdAt: item.createdAt }])}
@@ -559,13 +579,7 @@ export function SimpleGenerator() {
     onEdit={editImage} onReuse={(src, name, source) => void reuseImage(src, name, source)}
     onRetry={(record) => void reuseRecord(record)} onFavoriteRecord={(record) => void favoriteInput(record.prompt, record.attachments)}
     chatId={chatId} title={currentChat?.title || '当前创作'}
-    favorites={<SimpleFavorites items={favorites} locked={locked} onEnlarge={openPreview} onError={setError} onUse={useFavorite}
-      wouldReplaceInput={(item) => Boolean(prompt.trim() || (item.attachments.length && attachments.length))}
-      onUpdate={async (id, title, text) => {
-        const saved = await updateSimpleFavorite(id, title, text)
-        setFavorites((current) => current.map((item) => item.id === id ? saved : item))
-      }}
-      onRemove={async (id) => { await deleteSimpleFavorite(id); setFavorites((current) => current.filter((item) => item.id !== id)) }}/>}
+    favorites={<SimpleFavorites {...favoriteProps}/>}
     composer={composer} dark={dark} classic={classic} onStart={goToStudio}/>
 
   return <div className="studio-app">
@@ -614,6 +628,7 @@ export function SimpleGenerator() {
     {!!favoriteNotice && <div className="favorite-notice" role="status"><StudioIcon name="check" size={16}/>已收藏</div>}
 
     {galleryPicker && <SimpleGalleryPicker items={galleryItems} attachments={attachments} maxSelection={MAX_INPUT_IMAGES - attachments.length} onConfirm={addGalleryImages} onClose={() => setGalleryPicker(false)}/>}
+    {favoritePicker && <SimpleFavorites {...favoriteProps} onClosePicker={() => setFavoritePicker(false)}/>}
     {editingImage && <SimpleMaskEditor attachment={editingImage} mask={mask?.targetId === editingImage.id ? mask : undefined} onClose={() => setEditingImage(null)} onApply={(target, selectedMask) => { setAttachments((current) => [target, ...current.filter((file) => file.id !== editingImage.id && file.id !== target.id)]); setMask(selectedMask); if (selectedMask.mode === 'markup') setConnection((current) => ({ ...current, apiMode: 'images' })); setEditingImage(null); setParams((current) => ({ ...current, output_format: 'png' })); setTools((current) => ({ ...current, images: true })); if (workspaceTab === 'gallery') setWorkspaceTab(currentRecords.length ? 'chat' : 'studio'); requestAnimationFrame(() => textarea.current?.focus()) }}/>}
     <StudioSettings dialog={settingsDialog} apiKey={connection.apiKey} baseUrl={connection.baseUrl} onConnectionChange={(patch) => setConnection((current) => ({ ...current, ...patch }))} timeout={timeout} onTimeoutChange={setTimeoutValue} exchangeRate={exchangeRate} onExchangeRateChange={setExchangeRate} saved={saved} busy={locked} beforeTransfer={async () => { await draftWrites.current }}/>
     <dialog ref={dialog} className="image-dialog" aria-labelledby="preview-title" onClose={() => setEnlarged(null)} onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close() }}>

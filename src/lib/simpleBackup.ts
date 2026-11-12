@@ -1,13 +1,14 @@
 import { Zip, ZipPassThrough, strToU8, strFromU8, unzip } from 'fflate'
+import { MAX_INPUT_IMAGES } from '../types'
 import { base64ToBytes, bytesToBase64 } from './dataUrl'
 import { openSimpleHistory } from './simpleHistory'
 
-const STORES = ['chats', 'records', 'draft', 'references', 'assets'] as const
-const META = ['chats', 'records', 'draft', 'references'] as const
+const META = ['chats', 'records', 'draft', 'references', 'favorites'] as const
+const STORES = [...META, 'assets'] as const
 type Store = typeof META[number]
 type Entry = [string, any]
 type Asset = { key: string; file: string; header: string | null; crc: number }
-export type BackupManifest = { format: 'gpt-image-workspace'; version: 1; exportedAt: string; includeApiKey: boolean; settings: Record<string, string>; stores: Record<Store, Entry[]>; assets: Asset[] }
+export type BackupManifest = { format: 'gpt-image-workspace'; version: 1 | 2; exportedAt: string; includeApiKey: boolean; settings: Record<string, string>; stores: Record<Store, Entry[]>; assets: Asset[] }
 export type PreparedBackup = { manifest: BackupManifest; files: Record<string, Uint8Array> }
 const MAX_BYTES = 1024 * 1024 * 1024
 const allowedSetting = (key: string) => ['gpt-image-simple-connection', 'gpt-image-simple-draft', 'gpt-image-active-chat', 'gpt-image-sidebar-width', 'gpt-image-sidebar-collapsed', 'gpt-image-chat-sort'].includes(key) || key.startsWith('gpt-image-simple-draft:')
@@ -28,7 +29,7 @@ function settingsSnapshot(includeApiKey: boolean) {
 
 export async function exportSimpleBackup(includeApiKey: boolean, onProgress: (count: number) => void) {
   const db = await openSimpleHistory()
-  const manifest: BackupManifest = { format: 'gpt-image-workspace', version: 1, exportedAt: new Date().toISOString(), includeApiKey, settings: settingsSnapshot(includeApiKey), stores: { chats: [], records: [], draft: [], references: [] }, assets: [] }
+  const manifest: BackupManifest = { format: 'gpt-image-workspace', version: 2, exportedAt: new Date().toISOString(), includeApiKey, settings: settingsSnapshot(includeApiKey), stores: { chats: [], records: [], draft: [], references: [], favorites: [] }, assets: [] }
   const chunks: BlobPart[] = []
   let totalBytes = 0
   const zip = new Zip((error, chunk) => { if (error) throw error; totalBytes += chunk.length; if (totalBytes > MAX_BYTES) throw new Error('备份超过 1 GB，当前浏览器无法完整打包。'); chunks.push(chunk as Uint8Array<ArrayBuffer>) })
@@ -79,7 +80,8 @@ export async function exportSimpleBackup(includeApiKey: boolean, onProgress: (co
 export function validateSimpleBackup(value: unknown, files: Record<string, Uint8Array>): BackupManifest {
   const m = value as BackupManifest
   const invalid = () => { throw new Error('备份文件损坏、缺少图片或格式不兼容，未修改现有数据。') }
-  if (!m || m.format !== 'gpt-image-workspace' || m.version !== 1 || typeof m.includeApiKey !== 'boolean' || !m.stores || !Array.isArray(m.assets) || !m.settings || typeof m.settings !== 'object' || Array.isArray(m.settings)) return invalid()
+  if (!m || m.format !== 'gpt-image-workspace' || (m.version !== 1 && m.version !== 2) || typeof m.includeApiKey !== 'boolean' || !m.stores || !Array.isArray(m.assets) || !m.settings || typeof m.settings !== 'object' || Array.isArray(m.settings)) return invalid()
+  const stores = m.version === 1 ? { ...m.stores, favorites: [] } : m.stores
   const assets = new Set<string>()
   for (const a of m.assets) {
     if (!a || typeof a.key !== 'string' || assets.has(a.key) || typeof a.file !== 'string' || !/^assets\/\d+\.bin$/.test(a.file) || !files[a.file] || a.header !== null && !/^data:image\/[\w.+-]+;base64,$/.test(a.header)) return invalid()
@@ -97,18 +99,19 @@ export function validateSimpleBackup(value: unknown, files: Record<string, Uint8
     (d.partialCount === undefined || Number.isInteger(d.partialCount) && d.partialCount >= 0 && d.partialCount <= 3) &&
     (d.tools === undefined || d.tools && !Array.isArray(d.tools) && ['images', 'web', 'code', 'files'].every((key) => d.tools[key] === undefined || typeof d.tools[key] === 'boolean') && (d.tools.vectorStoreIds === undefined || typeof d.tools.vectorStoreIds === 'string') && (d.tools.action === undefined || ['auto', 'generate', 'edit'].includes(d.tools.action)))
   const validAsset = (key: unknown) => typeof key === 'string' && (assets.has(key) || key.startsWith('data:image/'))
+  const validAttachments = (files: unknown) => Array.isArray(files) && files.every((f) => f && typeof f.id === 'string' && typeof f.name === 'string' && validAsset(f.dataUrl))
   const chats = new Set<string>()
   for (const name of META) {
-    if (!Array.isArray(m.stores[name])) return invalid()
+    if (!Array.isArray(stores[name])) return invalid()
     const seen = new Set<string>()
-    for (const entry of m.stores[name]) {
+    for (const entry of stores[name]) {
       if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || seen.has(entry[0]) || !entry[1] || typeof entry[1] !== 'object') return invalid()
       seen.add(entry[0])
       const [key, item] = entry
       if (name !== 'draft' && item.id !== key) return invalid()
       if (name === 'chats') { if (typeof item.title !== 'string' || typeof item.createdAt !== 'number' || typeof item.updatedAt !== 'number') return invalid(); chats.add(key) }
       if (name === 'records' || name === 'draft' && key !== 'gallery-deleted') {
-        if (!Array.isArray(item.attachments) || typeof item.prompt !== 'string' || !validParams(item.params) || !item.attachments.every((f: any) => f && typeof f.id === 'string' && typeof f.name === 'string' && validAsset(f.dataUrl)) || item.mask && (typeof item.mask.id !== 'string' || typeof item.mask.targetId !== 'string' || !validAsset(item.mask.dataUrl))) return invalid()
+        if (!validAttachments(item.attachments) || typeof item.prompt !== 'string' || !validParams(item.params) || item.mask && (typeof item.mask.id !== 'string' || typeof item.mask.targetId !== 'string' || !validAsset(item.mask.dataUrl))) return invalid()
         if (name === 'records' && (!Array.isArray(item.images) || !item.images.every(validAsset) || typeof item.createdAt !== 'number' || !['done', 'running', 'error'].includes(item.status) || typeof item.error !== 'string' || typeof item.model !== 'string')) return invalid()
         for (const field of ['tools', 'citations', 'files']) if (name === 'records' && item[field] !== undefined && !Array.isArray(item[field])) return invalid()
         if (name === 'records') {
@@ -121,6 +124,7 @@ export function validateSimpleBackup(value: unknown, files: Record<string, Uint8
       if (name === 'draft' && key !== 'gallery-deleted' && !validDraftFields(item)) return invalid()
       if (name === 'draft' && key === 'gallery-deleted' && (!Array.isArray(item.ids) || !item.ids.every((id: unknown) => typeof id === 'string'))) return invalid()
       if (name === 'references' && (typeof item.name !== 'string' || !validAsset(item.dataUrl))) return invalid()
+      if (name === 'favorites' && (typeof item.title !== 'string' || !item.title.trim() || typeof item.prompt !== 'string' || !Number.isFinite(item.createdAt) || !validAttachments(item.attachments) || item.attachments.length > MAX_INPUT_IMAGES || !item.prompt.trim() && !item.attachments.length)) return invalid()
     }
   }
   for (const [, r] of m.stores.records) if (r.chatId && !chats.has(r.chatId)) return invalid()
@@ -130,7 +134,7 @@ export function validateSimpleBackup(value: unknown, files: Record<string, Uint8
       try { const parsed = JSON.parse(value); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.params && !validParams(parsed.params) || key.startsWith('gpt-image-simple-draft') && !validDraftFields(parsed)) return invalid() } catch { return invalid() }
     }
   }
-  return m
+  return { ...m, stores }
 }
 
 // Early v1 exports have no checksum sidecar. Their ZIP central directory still

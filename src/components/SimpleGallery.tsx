@@ -19,12 +19,13 @@ type GalleryProps = {
   unavailable?: Set<string>
   full?: boolean
   onDelete?: (item: SimpleGalleryItem) => Promise<void>
+  onFavorite?: (item: SimpleGalleryItem) => void
   onStart?: () => void
 }
 
 const filters = [['all', '全部'], ['generated', '生成'], ['uploaded', '上传']] as const
 
-export function SimpleGallery({ items, onEnlarge, onError, onEdit, onReuse, busy, selection, onToggle, unavailable, full, onDelete, onStart }: GalleryProps) {
+export function SimpleGallery({ items, onEnlarge, onError, onEdit, onReuse, busy, selection, onToggle, unavailable, full, onDelete, onFavorite, onStart }: GalleryProps) {
   const picker = !!onToggle
   const [batch, setBatch] = useState(false)
   const [downloadSelection, setDownloadSelection] = useState(new Set<string>())
@@ -103,13 +104,13 @@ export function SimpleGallery({ items, onEnlarge, onError, onEdit, onReuse, busy
         <p>{picker ? '可以关闭这里，改为上传一张图片。' : '生成图片或添加参考图后，就能在这里查看和复用。'}</p>
         {onStart && <button type="button" className="secondary-button" onClick={onStart}>回到创作台<StudioIcon name="arrowRight" size={16}/></button>}
       </div> : <>
-        <div className="workspace-gallery">{filtered.slice(0, limit).map((item) => <SimpleStoredImage key={item.id} asset={item.asset} variant={picker ? 'picker' : 'gallery'} onDelete={!batch && onDelete ? () => { setDeleteError(''); setDeleting(item) } : undefined} label={item.name} filename={item.filename} source={{ id: item.attachmentId, origin: item.origin, sourceAsset: item.sourceAsset }} onEnlarge={onEnlarge} onError={onError} onEdit={onEdit} onReuse={onReuse} busy={locked} onPick={toggle ? () => toggle(item) : undefined} selected={activeSelection?.has(item.id)} blocked={!!toggle && (locked || !batch && (unavailable?.has(item.id) || !!full && !selection?.has(item.id)))} />)}</div>
+        <div className="workspace-gallery">{filtered.slice(0, limit).map((item) => <SimpleStoredImage key={item.id} asset={item.asset} variant={picker ? 'picker' : 'gallery'} onDelete={!batch && onDelete ? () => { setDeleteError(''); setDeleting(item) } : undefined} onFavorite={onFavorite ? () => onFavorite(item) : undefined} label={item.name} filename={item.filename} source={{ id: item.attachmentId, origin: item.origin, sourceAsset: item.sourceAsset }} onEnlarge={onEnlarge} onError={onError} onEdit={onEdit} onReuse={onReuse} busy={locked} onPick={toggle ? () => toggle(item) : undefined} selected={activeSelection?.has(item.id)} blocked={!!toggle && (locked || !batch && (unavailable?.has(item.id) || !!full && !selection?.has(item.id)))} />)}</div>
         {filtered.length > limit && <button type="button" className="secondary-button load-history" onClick={() => setLimit((value) => value + 60)}>加载更多（{filtered.length - limit}）</button>}
       </>}
     </div>
     {deleting && <dialog ref={deleteDialog} className="settings-dialog gallery-delete-dialog" aria-labelledby="gallery-delete-title" onCancel={(event) => { if (pendingDelete) event.preventDefault() }} onClose={() => setDeleting(null)}>
       <div className="dialog-heading"><h2 id="gallery-delete-title">从图库移出图片？</h2></div>
-      <p>已在对话或草稿中使用的图片会继续保留。</p>
+      <p>对话、草稿和收藏引用的原图会继续保留。</p>
       {deleteError && <p className="error-message" role="alert">{deleteError}</p>}
       <div className="gallery-delete-actions"><button type="button" className="secondary-button" disabled={pendingDelete} onClick={() => deleteDialog.current?.close()}>取消</button><button type="button" className="danger-button" disabled={pendingDelete || busy} onClick={() => void confirmDelete()}>{pendingDelete ? '正在移出…' : '移出图库'}</button></div>
     </dialog>}

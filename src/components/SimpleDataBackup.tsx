@@ -31,7 +31,7 @@ export function SimpleDataBackup({ disabled, beforeTransfer, onBusyChange }: { d
       setPrepared(null)
       void run(async () => { setMessage('正在校验备份…'); const data = await prepareSimpleBackup(file); setPrepared(data); setMessage('') })
     }}/>
-    {prepared && <div className="backup-confirm"><p>{prepared.manifest.stores.chats.length} 个对话 · {prepared.manifest.stores.records.length} 条消息 · {prepared.manifest.assets.length} 个图片资源</p><p>将替换当前浏览器的对话、图片、草稿和设置。请先导出当前数据；导入后页面会重新加载。</p>{!prepared.manifest.includeApiKey && <p>备份不含 API Key；接口地址相同时保留本机密钥。</p>}<div className="backup-buttons"><button type="button" disabled={pending || disabled} onClick={() => setPrepared(null)}>取消</button><button type="button" disabled={pending || disabled} onClick={() => void run(async () => { setMessage('正在恢复数据…'); await restoreSimpleBackup(prepared); window.location.reload() })}>确认替换并恢复</button></div></div>}
+    {prepared && <div className="backup-confirm"><p>{prepared.manifest.stores.chats.length} 个对话 · {prepared.manifest.stores.records.length} 条消息 · {prepared.manifest.stores.favorites.length} 条收藏 · {prepared.manifest.assets.length} 个图片资源</p><p>将替换当前浏览器的对话、图片、草稿、收藏和设置。请先导出当前数据，导入后页面会重新加载。</p>{!prepared.manifest.includeApiKey && <p>备份不含 API Key；接口地址相同时保留本机密钥。</p>}<div className="backup-buttons"><button type="button" disabled={pending || disabled} onClick={() => setPrepared(null)}>取消</button><button type="button" disabled={pending || disabled} onClick={() => void run(async () => { setMessage('正在恢复数据…'); await restoreSimpleBackup(prepared); window.location.reload() })}>确认替换并恢复</button></div></div>}
     {message && <p className={failed ? 'error-message' : 'backup-status'} role={failed ? 'alert' : 'status'}>{message}</p>}
   </section>
 }

@@ -32,6 +32,7 @@ type Props = {
   canRebuild: boolean
   rebuildContext: boolean
   onToggleRebuild: () => void
+  onFavorite: () => void
   onStop: () => void
   price: ReactNode
   responseModel: ReactNode
@@ -39,7 +40,7 @@ type Props = {
 
 const closeMenu = (trigger: HTMLElement) => trigger.closest<HTMLElement>('[popover]')?.hidePopover()
 
-export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmit, attachments, onAddFiles, onChooseFromGallery, onEdit, onEnlarge, onRemove, mask, onRemoveMask, mode, onModeChange, tools, onToolsChange, imageSettings, ready, busy, elsewhere, readingFiles, attachmentMessage, canRebuild, rebuildContext, onToggleRebuild, onStop, price, responseModel }: Props) {
+export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmit, attachments, onAddFiles, onChooseFromGallery, onEdit, onEnlarge, onRemove, mask, onRemoveMask, mode, onModeChange, tools, onToolsChange, imageSettings, ready, busy, elsewhere, readingFiles, attachmentMessage, canRebuild, rebuildContext, onToggleRebuild, onFavorite, onStop, price, responseModel }: Props) {
   const fileInput = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
   const [dragging, setDragging] = useState(false)
@@ -47,6 +48,7 @@ export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmi
   const markup = mask?.mode === 'markup'
   const locked = busy || readingFiles || !ready
   const atLimit = attachments.length >= MAX_INPUT_IMAGES
+  const canFavorite = !!prompt.trim() || attachments.length > 0
   const submitLabel = !responses || tools.images || mask ? '生成' : '发送'
   const status = attachmentMessage || (readingFiles ? '正在读取参考图…' : elsewhere ? '另一个对话正在生成' : mask ? markup ? '已添加编辑标记' : '已选区 · 保留选区外画面' : rebuildContext ? '下次发送时重建上下文' : '')
   const placeholder = mask
@@ -102,7 +104,13 @@ export function StudioComposer({ textarea, prompt, continuing, onChange, onSubmi
               {tools.images && <label className="setting-row"><span>图片操作</span><select value={tools.action} onChange={(event) => onToolsChange({ ...tools, action: event.target.value as SimpleTools['action'] })}><option value="auto">自动选择</option><option value="generate">新建图片</option><option value="edit">强制编辑</option></select></label>}
             </fieldset>
           </SimplePopover>}
-          {(mask || canRebuild) && <SimplePopover label="更多操作" triggerClassName="composer-button composer-more" button={<StudioIcon name="more" size={17}/>} disabled={locked}><div className="chat-action-menu">{mask && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onRemoveMask() }}>{markup ? '移除编辑标记' : '移除编辑选区'}</button>}{canRebuild && <button type="button" aria-pressed={rebuildContext} onClick={(event) => { closeMenu(event.currentTarget); onToggleRebuild() }}>{rebuildContext ? '取消重建上下文' : '重建上下文'}</button>}</div></SimplePopover>}
+          {(canFavorite || mask || canRebuild) && <SimplePopover label="更多操作" triggerClassName="composer-button composer-more" button={<StudioIcon name="more" size={17}/>} disabled={locked}>
+            <div className="chat-action-menu">
+              {canFavorite && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onFavorite() }}><StudioIcon name="bookmark" size={17}/>收藏当前输入</button>}
+              {mask && <button type="button" onClick={(event) => { closeMenu(event.currentTarget); onRemoveMask() }}>{markup ? '移除编辑标记' : '移除编辑选区'}</button>}
+              {canRebuild && <button type="button" aria-pressed={rebuildContext} onClick={(event) => { closeMenu(event.currentTarget); onToggleRebuild() }}>{rebuildContext ? '取消重建上下文' : '重建上下文'}</button>}
+            </div>
+          </SimplePopover>}
         </div>
         {busy && responses && !elsewhere ? <button type="button" className="primary-button send-button" onClick={onStop}><StudioIcon name="stop" size={16}/>停止</button> : <button type="submit" className="primary-button send-button" title={`${submitLabel}（Enter）`} disabled={locked || !prompt.trim()}>{busy || readingFiles ? <span className="spinner"/> : <StudioIcon name="send" size={18}/>}<span>{submitLabel}</span></button>}
       </div>

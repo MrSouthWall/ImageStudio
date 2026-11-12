@@ -278,6 +278,10 @@ svg { flex-shrink: 0; vertical-align: middle; }
   .session-list .chat-search input[type="search"] { font-size: 16px; }
   .session-list .chat-search kbd { display: none; }
 }
+@media (min-width: 671px) and (max-width: 920px) {
+  .studio-masthead { grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); }
+  .studio-nav button { min-width: 0; padding-inline: 7px; }
+}
 @media (max-width: 670px) {
   :root { --gutter: 15px; --masthead-height: 59px; --dock-height: calc(62px + env(safe-area-inset-bottom)); }
   .sky-dust { opacity: .45; }
@@ -294,7 +298,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
   .connection-trigger > svg { display: none; }
   .studio-nav {
     position: fixed; z-index: 5; inset: auto 9px calc(6px + env(safe-area-inset-bottom)); min-height: 49px;
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; background: var(--glass);
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; background: var(--glass);
   }
   .studio-nav button { gap: 4px; min-width: 0; min-height: 39px; padding: 4px 2px; font-size: 11px; }
   .studio-nav button > svg { width: 15px; height: 15px; }

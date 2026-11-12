@@ -137,6 +137,9 @@
 @container composer (max-width: 690px) {
   .image-quick-settings { display: none; }
 }
+@container composer (max-width: 785px) {
+  .composer-tools:has(.composer-more) .image-quick-settings { display: none; }
+}
 @container composer (max-width: 425px) {
   .composer-tools, .image-parameters { gap: 4px; }
   .composer-actions { gap: 7px; }
@@ -145,13 +148,24 @@
   .attach-label, .tools-label, .mode-button > svg:first-child { display: none; }
   .send-button { min-width: 68px; gap: 5px; padding-inline: 9px; }
 }
+@container composer (max-width: 360px) {
+  .composer-tools:where(:has(.composer-more)) .parameter-trigger { width: 35px; padding: 0; }
+  .composer-tools:where(:has(.composer-more)) .parameter-trigger > span { display: none; }
+}
 @container composer (max-width: 316px) {
   .composer-tools, .image-parameters { gap: 3px; }
   .composer-actions .parameter-trigger > span { display: none; }
   .composer-actions :is(.attachment-button, .parameter-trigger, .tools-icon-button, .composer-more) { width: 32px; padding-inline: 0; }
   .composer-actions .mode-button { gap: 3px; padding-inline: 5px; }
+  .composer-tools:has(.composer-more) .mode-button > svg:last-child { display: none; }
   .composer-actions { gap: 5px; }
   .send-button { min-width: 63px; padding-inline: 6px; }
+}
+@container composer (max-width: 265px) {
+  .composer-tools:has(.composer-more) { gap: 2px; }
+  .composer-tools:has(.composer-more) .mode-button { width: 32px; padding: 0; }
+  .composer-tools:has(.composer-more) .mode-button > svg:first-child { display: block; }
+  .composer-tools:has(.composer-more) .mode-button .choice-label { display: none; }
 }
 
 .studio-result { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }

@@ -13,11 +13,12 @@ import { createSimpleMarkupEdit, SIMPLE_MARKUP_INSTRUCTION, validateSimpleMarkup
 import { createSimpleMaskedEdit, SIMPLE_MASK_INSTRUCTION } from '../lib/simpleMaskedEdit'
 import { buildSimpleConversationInput } from '../lib/simpleConversation'
 import { callSimpleResponses, DEFAULT_SIMPLE_TOOLS, RESPONSE_MODELS, RESPONSE_MODEL_CHOICES, simpleResponseScope, type SimpleTools } from '../lib/simpleResponses'
-import { deleteSimpleGalleryImage, loadSimpleState, loadSimpleAssets, loadSimpleDraft, saveSimpleChat, saveSimpleItem, simpleRecordMetadata, type SimpleAttachment as Attachment, type SimpleRecord, type SimpleReference, type SimpleChat, type SimpleDraft, type SimpleOutputFile, type SimpleMask } from '../lib/simpleHistory'
+import { deleteSimpleFavorite, deleteSimpleGalleryImage, loadSimpleState, loadSimpleAssets, loadSimpleAttachments, loadSimpleDraft, saveSimpleChat, saveSimpleFavorite, saveSimpleItem, simpleRecordMetadata, updateSimpleFavorite, type SimpleAttachment as Attachment, type SimpleFavorite, type SimpleFavoriteInputImage, type SimpleRecord, type SimpleReference, type SimpleChat, type SimpleDraft, type SimpleOutputFile, type SimpleMask } from '../lib/simpleHistory'
 import { Info, SimpleChoice, HelpRows } from './SimplePopover'
 import { SimpleImageSettings } from './SimpleImageSettings'
 import { buildSimpleGallery, type SimpleGalleryItem } from '../lib/simpleGallery'
 import { SimpleGalleryPicker } from './SimpleGallery'
+import { SimpleFavorites } from './SimpleFavorites'
 import type { ImageSource } from './SimpleStoredImage'
 import { SimpleWorkspace, type WorkspaceTab } from './SimpleWorkspace'
 import { SimpleChatList } from './SimpleChatList'
@@ -37,6 +38,7 @@ const views = [
   { id: 'studio', label: '创作台', icon: 'spark' },
   { id: 'chat', label: '对话', icon: 'chat' },
   { id: 'gallery', label: '图库', icon: 'image' },
+  { id: 'favorites', label: '收藏', icon: 'bookmark' },
 ] as const
 
 const sessionLayout = '(min-width: 821px)'
@@ -76,6 +78,8 @@ export function SimpleGenerator() {
   const [records, setRecords] = useState<SimpleRecord[]>([])
   const [deletedGallery, setDeletedGallery] = useState<string[]>([])
   const [references, setReferences] = useState<SimpleReference[]>([])
+  const [favorites, setFavorites] = useState<SimpleFavorite[]>([])
+  const [favoriteNotice, setFavoriteNotice] = useState(0)
   const [chats, setChats] = useState<SimpleChat[]>([])
   const [chatId, setChatId] = useState('')
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('studio')
@@ -155,6 +159,7 @@ export function SimpleGenerator() {
         setWorkspaceTab((current) => current === 'studio' ? 'chat' : current)
       }
       setReferences(state.references)
+      setFavorites(state.favorites)
       setDeletedGallery(state.deletedGallery)
       restoreDraft(draft, id)
       if (!state.chats.length) void saveSimpleChat(allChats[0]).catch(() => setStorageMessage('对话保存失败，请及时下载图片。'))
@@ -184,6 +189,11 @@ export function SimpleGenerator() {
     return () => window.clearInterval(timer)
   }, [busy])
   useEffect(() => { if (enlarged) dialog.current?.showModal() }, [enlarged])
+  useEffect(() => {
+    if (!favoriteNotice) return
+    const timer = window.setTimeout(() => setFavoriteNotice(0), 3500)
+    return () => window.clearTimeout(timer)
+  }, [favoriteNotice])
   useEffect(() => {
     const query = window.matchMedia(sessionLayout)
     const update = () => setDesktop(query.matches)
@@ -306,13 +316,83 @@ export function SimpleGenerator() {
     if (active.current || reading.current || !draftReady) return
     reading.current = true; setReadingFiles(true)
     try {
-      const files = await Promise.all(record.attachments.map(async (file) => ({ ...file, dataUrl: file.dataUrl.startsWith('data:') ? file.dataUrl : (await loadSimpleAssets([file.dataUrl]))[0] })))
-      if (files.some((file) => !file.dataUrl)) throw new Error('参考图读取失败。')
+      const files = await loadSimpleAttachments(record.attachments)
       const restoredMask = record.mask ? { ...record.mask, dataUrl: record.mask.dataUrl.startsWith('data:') ? record.mask.dataUrl : (await loadSimpleAssets([record.mask.dataUrl]))[0] } : undefined
       setPrompt(record.prompt); setAttachments(files); setMask(restoredMask); if (restoredMask?.mode === 'markup') setConnection((current) => ({ ...current, apiMode: 'images' }))
       setWorkspaceTab('chat'); requestAnimationFrame(() => textarea.current?.focus())
     } catch { setError('读取这条消息失败，请重试。') }
     finally { reading.current = false; setReadingFiles(false) }
+  }
+
+  async function favoriteInput(text: string, files: SimpleFavoriteInputImage[]) {
+    if (!draftReady || active.current || reading.current) return
+    setError('')
+    try {
+      const saved = await saveSimpleFavorite(text, files)
+      setFavorites((current) => current.some((item) => item.id === saved.id)
+        ? current.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...current])
+      setFavoriteNotice(Date.now())
+    } catch (err) {
+      setError(err instanceof Error && !(err instanceof DOMException) ? err.message : '收藏保存失败，请重试。')
+    }
+  }
+
+  async function useFavorite(item: SimpleFavorite, fresh: boolean) {
+    if (!draftReady || active.current || reading.current) throw new Error('请等待当前操作完成。')
+    reading.current = true
+    setReadingFiles(true)
+    try {
+      const sources = await loadSimpleAttachments(item.attachments)
+      const files: Attachment[] = []
+      for (const [i, file] of sources.entries()) {
+        const dataUrl = await toApiInputImageDataUrl(file.dataUrl)
+        const asset = item.attachments[i].dataUrl
+        // A converted reference needs a different key if its original lives at the attachment key.
+        const id = dataUrl !== file.dataUrl && (asset === `attachment-${file.id}` || asset.startsWith('data:')) ? `input-${file.id}` : file.id
+        files.push({ ...file, id, dataUrl })
+      }
+      const hasPrompt = !!item.prompt.trim()
+      const replacesImages = hasPrompt && files.length > 0
+      const nextAttachments = fresh || replacesImages ? files : [...attachments]
+      if (!hasPrompt) {
+        for (const file of files) {
+          const alreadyAdded = nextAttachments.some((current) => current.id === file.id ||
+            !!file.sourceAsset && current.sourceAsset === file.sourceAsset || current.dataUrl === file.dataUrl)
+          if (!alreadyAdded) nextAttachments.push(file)
+        }
+      }
+      if (nextAttachments.length > MAX_INPUT_IMAGES) throw new Error(`最多添加 ${MAX_INPUT_IMAGES} 张参考图，请先移除一些图片。`)
+
+      const nextPrompt = hasPrompt ? item.prompt : prompt
+      const nextMask = fresh || replacesImages ? undefined : mask
+      const changesFormat = files.length > 0 && params.output_format === 'svg'
+      const nextParams = changesFormat ? { ...params, output_format: 'png' as const } : params
+      const nextTools = files.length ? { ...tools, images: true } : tools
+      if (fresh) {
+        const chat = { id: crypto.randomUUID(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now() }
+        const draft = { chatId, prompt, params, customSize, background, partialCount, timeout, exchangeRate, tools, attachments, mask }
+        await draftWrites.current
+        await saveSimpleItem('draft', draft)
+        await saveSimpleItem('draft', { ...draft, chatId: chat.id, prompt: nextPrompt, params: nextParams, tools: nextTools, attachments: nextAttachments, mask: nextMask }, chat)
+        setChats((current) => [chat, ...current])
+        setChatId(chat.id)
+        setSearch('')
+        setRebuildContext(false)
+      }
+      setPrompt(nextPrompt)
+      setAttachments(nextAttachments)
+      setMask(nextMask)
+      setParams(nextParams)
+      setTools(nextTools)
+      setError('')
+      setAttachmentMessage(changesFormat ? '已切换为 PNG，以使用参考图。' : '')
+      setWorkspaceTab(!fresh && currentRecords.length ? 'chat' : 'studio')
+      requestAnimationFrame(() => textarea.current?.focus())
+    } finally {
+      reading.current = false
+      setReadingFiles(false)
+    }
   }
 
   async function addAttachments(files: File[]) {
@@ -455,7 +535,8 @@ export function SimpleGenerator() {
         attachments={attachments} onAddFiles={(files) => void addAttachments(files)} onChooseFromGallery={() => setGalleryPicker(true)} onEdit={setEditingImage} onEnlarge={openPreview} onRemove={(file) => { setAttachments((current) => current.filter((item) => item.id !== file.id)); setAttachmentMessage(''); if (mask?.targetId === file.id) setMask(undefined) }}
         mask={mask} onRemoveMask={() => setMask(undefined)} mode={connection.apiMode} onModeChange={(apiMode) => setConnection({ ...connection, apiMode })} tools={tools} onToolsChange={setTools}
         imageSettings={usesImages && <SimpleImageSettings onReset={() => { setParams({ ...DEFAULT_PARAMS }); setCustomSize(SIMPLE_DEFAULT_SIZE); setBackground('auto'); setPartialCount(0); setTools((current) => ({ ...current, action: 'auto' })) }} exchangeRate={exchangeRate} params={params} setParams={setParams} imageModel={connection.model} onModelChange={(model) => { setConnection({ ...connection, model }); if (model.startsWith('gpt-image-2.5-') && animated) { setParams((current) => ({ ...current, output_format: 'png', size: SIMPLE_DEFAULT_SIZE })); setCustomSize(SIMPLE_DEFAULT_SIZE) } }} customSize={customSize} setCustomSize={setCustomSize} background={background} setBackground={setBackground} partialCount={partialCount} setPartialCount={setPartialCount} busy={locked} hasAttachments={!!attachments.length} responses={responses}/>}
-        ready={draftReady} busy={busy} elsewhere={busy && busyChat !== chatId} readingFiles={readingFiles} attachmentMessage={attachmentMessage} canRebuild={responses && !!currentRecords.length} rebuildContext={rebuildContext} onToggleRebuild={() => setRebuildContext(!rebuildContext)} onStop={() => controller.current?.abort()} price={price} responseModel={responseModel}/>
+        ready={draftReady} busy={busy} elsewhere={busy && busyChat !== chatId} readingFiles={readingFiles} attachmentMessage={attachmentMessage} canRebuild={responses && !!currentRecords.length} rebuildContext={rebuildContext} onToggleRebuild={() => setRebuildContext(!rebuildContext)}
+        onFavorite={() => void favoriteInput(prompt, attachments)} onStop={() => controller.current?.abort()} price={price} responseModel={responseModel}/>
 
   const sessions = <div className="session-list">
     <div className="session-list-heading">
@@ -471,11 +552,20 @@ export function SimpleGenerator() {
 
   const workspace = <SimpleWorkspace activeTab={workspaceTab} chatRecords={currentRecords} galleryItems={galleryItems}
     onDeleteImage={async (item) => { await draftWrites.current; setDeletedGallery(await deleteSimpleGalleryImage(item)) }}
+    onFavoriteImage={(item) => void favoriteInput('', [{ id: item.attachmentId || `reused-${item.sourceAsset}`, name: item.filename, dataUrl: item.asset, assetKey: item.attachmentId ? undefined : item.id, origin: item.origin, sourceAsset: item.sourceAsset, createdAt: item.createdAt }])}
     busy={busy && busyChat === chatId} imageActionsLocked={locked} seconds={seconds}
     previews={busyChat === chatId ? previews : {}} ready={historyReady} storageMessage={storageMessage}
     error={error} onEnlarge={openPreview} onError={setError} onDownloadFile={downloadOutputFile}
     onEdit={editImage} onReuse={(src, name, source) => void reuseImage(src, name, source)}
-    onRetry={(record) => void reuseRecord(record)} chatId={chatId} title={currentChat?.title || '当前创作'}
+    onRetry={(record) => void reuseRecord(record)} onFavoriteRecord={(record) => void favoriteInput(record.prompt, record.attachments)}
+    chatId={chatId} title={currentChat?.title || '当前创作'}
+    favorites={<SimpleFavorites items={favorites} locked={locked} onEnlarge={openPreview} onError={setError} onUse={useFavorite}
+      needsConfirmation={(item) => !!item.prompt.trim() && (!!prompt.trim() || !!item.attachments.length && !!attachments.length)}
+      onUpdate={async (id, title, text) => {
+        const saved = await updateSimpleFavorite(id, title, text)
+        setFavorites((current) => current.map((item) => item.id === id ? saved : item))
+      }}
+      onRemove={async (id) => { await deleteSimpleFavorite(id); setFavorites((current) => current.filter((item) => item.id !== id)) }}/>}
     composer={composer} dark={dark} classic={classic} onStart={goToStudio}/>
 
   return <div className="studio-app">
@@ -521,6 +611,7 @@ export function SimpleGenerator() {
         </div>
       </div> : workspace}
     </main>
+    {!!favoriteNotice && <div className="favorite-notice" role="status"><StudioIcon name="check" size={16}/>已收藏</div>}
 
     {galleryPicker && <SimpleGalleryPicker items={galleryItems} attachments={attachments} maxSelection={MAX_INPUT_IMAGES - attachments.length} onConfirm={addGalleryImages} onClose={() => setGalleryPicker(false)}/>}
     {editingImage && <SimpleMaskEditor attachment={editingImage} mask={mask?.targetId === editingImage.id ? mask : undefined} onClose={() => setEditingImage(null)} onApply={(target, selectedMask) => { setAttachments((current) => [target, ...current.filter((file) => file.id !== editingImage.id && file.id !== target.id)]); setMask(selectedMask); if (selectedMask.mode === 'markup') setConnection((current) => ({ ...current, apiMode: 'images' })); setEditingImage(null); setParams((current) => ({ ...current, output_format: 'png' })); setTools((current) => ({ ...current, images: true })); if (workspaceTab === 'gallery') setWorkspaceTab(currentRecords.length ? 'chat' : 'studio'); requestAnimationFrame(() => textarea.current?.focus()) }}/>}

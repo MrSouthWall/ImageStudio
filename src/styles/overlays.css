@@ -170,6 +170,70 @@ dialog::backdrop { background: var(--backdrop); }
 .dialog-heading h2 { margin: 0; font: 700 24px/1.2 var(--display); letter-spacing: -.025em; }
 .dialog-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .settings-close { width: 34px; height: 34px; margin: -4px -3px 0 0; }
+
+.favorites-pane { padding: clamp(24px, 5vh, 55px) var(--gutter) 34px; }
+.favorites-heading { align-items: center; flex-wrap: wrap; gap: 16px; }
+.favorite-search {
+  display: flex; align-items: center; gap: 9px; width: min(100%, 310px); padding-inline: 13px;
+  border: 1px solid var(--line); border-radius: var(--pill); color: var(--muted); background: var(--surface);
+}
+.favorite-search:focus-within { border-color: var(--focus); }
+.favorite-search svg { flex: 0 0 auto; }
+.favorite-search input {
+  width: 100%; min-width: 0; height: 42px; padding: 0; border: 0; outline: 0;
+  background: transparent; color: var(--ink);
+}
+.favorites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.favorite-card {
+  display: flex; flex-direction: column; min-width: 0; gap: 10px; padding: 14px;
+  border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface);
+}
+.favorite-card h2 { margin: 0; font-size: 16px; line-height: 1.4; }
+.favorite-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 32px;
+  padding: 3px 0; border-radius: var(--radius-small); color: var(--ink); font-weight: 680; text-align: left;
+}
+.favorite-title:hover { color: var(--accent-text); background: var(--surface-soft); }
+.favorite-title span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.favorite-title svg { flex: 0 0 auto; color: var(--muted); }
+.favorite-summary {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.favorite-images { display: flex; flex-wrap: wrap; gap: 6px; }
+.favorite-images .reference-thumbnail { width: 72px; }
+.favorite-images .reference-thumbnail :is(img, .stored-image-placeholder) { width: 70px; height: 70px; min-height: 70px; }
+.favorite-card-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 2px; }
+.favorite-card-actions > span { color: var(--muted); font-size: 12px; }
+.favorite-card-actions button { min-height: 34px; margin-left: auto; font-size: 12px; }
+.favorites-empty {
+  display: grid; justify-items: center; gap: 8px; padding: clamp(34px, 8vh, 80px) 16px;
+  border: 1px dashed var(--line); border-radius: var(--radius-large); background: var(--surface); text-align: center;
+}
+.favorites-empty h2 { margin: 2px 0 0; font-size: 17px; }
+.favorites-empty p { margin: 0; color: var(--muted); }
+.favorite-form { display: grid; gap: 14px; }
+.favorite-form label { display: grid; gap: 5px; font-weight: 650; }
+.favorite-form :is(input, textarea) {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-small);
+  color: var(--ink); background: var(--canvas); font-weight: 400;
+}
+.favorite-form textarea { min-height: 94px; max-height: 45dvh; resize: vertical; }
+.favorite-image-field p { margin: 0 0 5px; color: var(--muted); font-size: 13px; }
+.favorite-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.favorite-dialog-actions .favorite-remove { margin-right: auto; color: var(--danger); }
+.favorite-remove-confirm { margin: 0; color: var(--danger); }
+.favorite-notice {
+  position: fixed; z-index: 4; inset: calc(var(--masthead-height) + 8px) var(--frame-pad) auto auto;
+  display: flex; align-items: center; gap: 6px; padding: 8px 13px; border: 1px solid var(--line); border-radius: var(--pill);
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); pointer-events: none;
+}
+@media (max-width: 670px) {
+  .favorites-pane { padding-top: 18px; }
+  .favorite-search { width: 100%; }
+  .favorite-search input, .favorite-form :is(input, textarea) { font-size: 16px; }
+}
+
 .studio-settings { width: 535px; }
 .settings-navigation { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
 .settings-navigation button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 11px; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; }

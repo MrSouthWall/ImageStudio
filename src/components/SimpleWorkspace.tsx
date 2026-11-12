@@ -10,7 +10,7 @@ import { StudioHome } from './StudioHome'
 import { StudioIcon } from './StudioIcon'
 import appIcon from '../assets/icon.svg'
 
-export type WorkspaceTab = 'studio' | 'chat' | 'gallery'
+export type WorkspaceTab = 'studio' | 'chat' | 'gallery' | 'favorites'
 const ReactMarkdown = lazy(() => import('react-markdown'))
 
 type ConversationProps = {
@@ -24,6 +24,7 @@ type ConversationProps = {
   onEdit: ImageProps['onEdit']
   onReuse: ImageProps['onReuse']
   onRetry: (record: SimpleRecord) => void
+  onFavoriteRecord: (record: SimpleRecord) => void
   onDownloadFile: (record: SimpleRecord, file: SimpleOutputFile) => void
 }
 
@@ -67,7 +68,7 @@ function RecordDetails({ record }: { record: SimpleRecord }) {
   </>
 }
 
-function Conversation({ records, busy, imageActionsLocked, seconds, previews, onEnlarge, onError, onEdit, onReuse, onRetry, onDownloadFile }: ConversationProps) {
+function Conversation({ records, busy, imageActionsLocked, seconds, previews, onEnlarge, onError, onEdit, onReuse, onRetry, onFavoriteRecord, onDownloadFile }: ConversationProps) {
   const [visibleCount, setVisibleCount] = useState(20)
   const [away, setAway] = useState(false)
   const pane = useRef<HTMLDivElement>(null)
@@ -115,7 +116,11 @@ function Conversation({ records, busy, imageActionsLocked, seconds, previews, on
               <p>{record.prompt}</p>
               {!!record.attachments.length && <div className="history-attachments">{record.attachments.map((file) => <StoredImage key={file.id} asset={file.dataUrl} label={file.name} filename={file.name} onEnlarge={onEnlarge} onError={onError} onEdit={onEdit} onReuse={onReuse} busy={imageActionsLocked} thumbnail download={false}/>)}</div>}
             </div>
-            <div className="message-meta user-meta"><CopyButton text={record.prompt} label="复制提示词" onError={onError}/><button type="button" className="message-action" disabled={imageActionsLocked} onClick={() => onRetry(record)}><StudioIcon name="retry" size={14}/>再次使用</button></div>
+            <div className="message-meta user-meta">
+              <CopyButton text={record.prompt} label="复制提示词" onError={onError}/>
+              <button type="button" className="message-action" disabled={imageActionsLocked} onClick={() => onRetry(record)}><StudioIcon name="retry" size={14}/>再次使用</button>
+              <button type="button" className="message-action" disabled={imageActionsLocked} onClick={() => onFavoriteRecord(record)}><StudioIcon name="bookmark" size={14}/>收藏</button>
+            </div>
           </div>
           <div className="assistant-block">
             <div className="assistant-heading"><img src={appIcon} alt="" width="28" height="28"/><strong>图作间</strong></div>
@@ -208,27 +213,30 @@ type WorkspaceProps = Omit<ConversationProps, 'records'> & {
   chatRecords: SimpleRecord[]
   galleryItems: SimpleGalleryItem[]
   onDeleteImage: (item: SimpleGalleryItem) => Promise<void>
+  onFavoriteImage: (item: SimpleGalleryItem) => void
   ready: boolean
   storageMessage: string
   error: string
   chatId: string
   title: string
   composer: ReactNode
+  favorites: ReactNode
   dark: boolean
   classic: boolean
   onStart: () => void
 }
 
-export function SimpleWorkspace({ activeTab, chatRecords, galleryItems, onDeleteImage, ready, storageMessage, error, chatId, title, composer, dark, classic, onStart, ...conversation }: WorkspaceProps) {
+export function SimpleWorkspace({ activeTab, chatRecords, galleryItems, onDeleteImage, onFavoriteImage, ready, storageMessage, error, chatId, title, composer, favorites, dark, classic, onStart, ...conversation }: WorkspaceProps) {
   return <section className={'result-panel view-' + activeTab} aria-label="图片工作区">
     {storageMessage && <p className="storage-message workspace-notice" role="alert">{storageMessage}</p>}
     {error && <p className="error-message workspace-notice" role="alert">{error}</p>}
     <div className="workspace-content">
       {!ready && <div className="workspace-loading" role="status"><span className="spinner"/>正在恢复记录…</div>}
       {ready && activeTab === 'studio' && <StudioHome composer={composer} dark={dark} classic={classic}/>}
-      {ready && activeTab === 'gallery' && <SimpleGallery onStart={onStart} onDelete={onDeleteImage} items={galleryItems}
+      {ready && activeTab === 'gallery' && <SimpleGallery onStart={onStart} onDelete={onDeleteImage} onFavorite={onFavoriteImage} items={galleryItems}
         onEnlarge={conversation.onEnlarge} onError={conversation.onError} onEdit={conversation.onEdit}
         onReuse={conversation.onReuse} busy={conversation.imageActionsLocked}/>}
+      {ready && activeTab === 'favorites' && favorites}
       {ready && activeTab === 'chat' && (chatRecords.length
         ? <StudioResult key={chatId} title={title} records={chatRecords} {...conversation}/>
         : <div className="session-empty">
